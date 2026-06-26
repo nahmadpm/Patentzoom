@@ -1,0 +1,97 @@
+{
+  "users": [
+    {
+      "id": "a55e76ff-b33e-4102-a874-f0e1b0e4a4bc",
+      "firstName": "Prashant",
+      "lastName": "",
+      "email": "prashant@menteso.com",
+      "phone": "8929593101",
+      "address1": "",
+      "address2": "",
+      "city": "",
+      "state": "",
+      "zip": "",
+      "country": "United States",
+      "bestTime": "",
+      "passwordHash": null,
+      "createdAt": "2026-06-24T10:23:10.570Z",
+      "updatedAt": "2026-06-24T10:23:10.570Z"
+    },
+    {
+      "id": "00d233b0-ce64-4569-81d8-cc6532ec4e23",
+      "firstName": "prashant",
+      "lastName": "Saxena",
+      "email": "prashantsaxena@gmail.com",
+      "phone": "8929598171",
+      "address1": "Noida",
+      "address2": "Noida",
+      "city": "Noida",
+      "state": "uttar pradesh",
+      "zip": "201301",
+      "country": "India",
+      "bestTime": "Morning",
+      "passwordHash": "573ae378-8e60-4b20-a59d-24da76aff8fd:e59d9082c3ed0d00b898f27e67543af984fcfa3036224e442eab93de5596589dbeb2417c611d519335a364546d55ce8684820b13ed5c7e6f90d7857e3de410f5",
+      "createdAt": "2026-06-24T10:43:48.185Z",
+      "updatedAt": "2026-06-24T10:46:01.120Z"
+    },
+    {
+      "id": "b84f9c7f-4624-4233-8228-c4a17b65cca8",
+      "firstName": "Anvarul",
+      "lastName": "Haq",
+      "email": "anvarul@menteso.com",
+      "phone": "8171913004",
+      "address1": "Noida",
+      "address2": "Noida",
+      "city": "Noida",
+      "state": "Uttar Pradesh",
+      "zip": "201301",
+      "country": "India",
+      "bestTime": "Morning",
+      "passwordHash": "0878cc51-8b0e-42e1-88ba-36afc0c69522:19f3a2ef412797bbd7297847f3ddf07841771876884d76639ec8a2949bfd3590f4d3066a58206edc2fe37a07dce732de0a87ebf93c851ab77843cafc0bebc7b9",
+      "createdAt": "2026-06-24T10:52:49.730Z",
+      "updatedAt": "2026-06-24T10:54:01.170Z"
+    },
+    {
+      "id": "4e409857-c31d-40a3-99b7-14935c9dfa9e",
+      "firstName": "Naushad",
+      "lastName": "Ahmad",
+      "email": "ahmad@menteso.com",
+      "phone": "8171913004",
+      "address1": "Noida",
+      "address2": "Noida",
+      "city": "Noida",
+      "state": "Uttar Pradesh",
+      "zip": "201301",
+      "country": "India",
+      "bestTime": "Morning",
+      "passwordHash": "74981c90-ce4b-49e7-aa9b-79a65d429764:00d029e5236abdddc0db6711e99ae42891b58014aad8e13b807fcb1c4f3a8c0968612081cea3b2e175f8f7377db2106d96ed37958d57fbe07822d8799ae20f29",
+      "createdAt": "2026-06-24T11:31:19.419Z",
+      "updatedAt": "2026-06-24T14:26:24.467Z",
+      "resetPasswordHash": null,
+      "resetPasswordExpiresAt": null,
+      "resetPasswordSentAt": null,
+      "intakeDrafts": {
+        "provisional-patent": {
+          "currentStep": 4,
+          "inventionName": "New Invention",
+          "inventor": {
+            "firstName": "Naushad",
+            "middleName": "",
+            "lastName": "Ahmad",
+            "address1": "Noida",
+            "address2": "Noida",
+            "city": "Noida",
+            "state": "Uttar Pradesh",
+            "zip": "201301",
+            "country": "India",
+            "email": "ahmad@menteso.com",
+            "filedMoreThanFour": "no"
+          },
+          "packageKey": "basic",
+          "packageLabel": "Basic",
+          "updatedAt": "2026-06-24T14:26:24.467Z"
+        }
+      }
+    }
+  ]
+}
