@@ -80,7 +80,7 @@ export function HeroInteractiveShell({
       }
     >
       <div
-        className="hero-background-layer min-h-[430px] border-b border-slate-200 bg-cover bg-center bg-no-repeat"
+        className="hero-background-layer border-b border-slate-200 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url('${backgroundImage}')`,
           backgroundPosition,
@@ -91,12 +91,12 @@ export function HeroInteractiveShell({
         <div className="hero-cursor-glow absolute inset-0" />
         <div className="hero-cursor-highlight absolute inset-0" />
 
-        <div className="relative mx-auto grid w-full max-w-7xl gap-10 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:py-12">
-          <div className="hero-content relative self-center pt-8 lg:pt-20">
+        <div className="relative mx-auto grid w-full max-w-7xl gap-5 px-5 py-6 sm:gap-7 sm:px-6 sm:py-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-10 lg:py-12">
+          <div className="hero-content relative self-center pt-1 sm:pt-2 lg:pt-20">
             {content}
           </div>
 
-          <div className="hero-card-wrap relative self-start justify-self-end lg:w-[430px]">
+          <div className="hero-card-wrap relative -mt-1 mx-auto w-full max-w-[22.75rem] self-start justify-self-stretch sm:max-w-[25rem] lg:mx-0 lg:mt-0 lg:w-[430px] lg:max-w-none lg:justify-self-end">
             {card}
           </div>
         </div>

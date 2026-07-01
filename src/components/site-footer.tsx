@@ -7,42 +7,42 @@ import { contactDetails, navigationLinks } from "@/lib/site-data";
 export function SiteFooter() {
   return (
     <footer className="border-t border-[var(--brand-line)] bg-[linear-gradient(180deg,#fffdf9_0%,#f7efe8_100%)] text-slate-700">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-6 py-14 lg:grid-cols-[0.9fr_0.7fr_0.9fr] lg:px-10">
+      <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 sm:px-6 md:gap-10 md:px-6 md:py-14 lg:grid-cols-[0.9fr_0.7fr_0.9fr] lg:px-10">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink)]">
+          <h3 className="text-[0.9rem] font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)] md:text-sm md:tracking-[0.18em]">
             About PatentZoom
           </h3>
-          <ul className="mt-4 space-y-3 text-sm">
+          <ul className="mt-4 space-y-3 border-t border-slate-200 text-[0.92rem] md:border-t-0 md:text-sm">
             <li>
-              <Link href="/about" className="transition hover:text-slate-950">
+              <Link href="/about" className="block border-b border-slate-200 py-2 transition hover:text-slate-950 md:border-b-0 md:py-0">
                 About Us
               </Link>
             </li>
             <li>
-              <Link href="/knowledge-center" className="transition hover:text-slate-950">
+              <Link href="/knowledge-center" className="block border-b border-slate-200 py-2 transition hover:text-slate-950 md:border-b-0 md:py-0">
                 Reviews
               </Link>
             </li>
             <li>
-              <Link href="/knowledge-center" className="transition hover:text-slate-950">
+              <Link href="/knowledge-center" className="block border-b border-slate-200 py-2 transition hover:text-slate-950 md:border-b-0 md:py-0">
                 Obtained Patents
               </Link>
             </li>
             <li>
-              <Link href="/knowledge-center" className="transition hover:text-slate-950">
+              <Link href="/knowledge-center" className="block border-b border-slate-200 py-2 transition hover:text-slate-950 md:border-b-0 md:py-0">
                 Confidentiality & Privacy Policy
               </Link>
             </li>
             <li>
-              <Link href="/contact" className="transition hover:text-slate-950">
+              <Link href="/contact" className="block py-2 transition hover:text-slate-950 md:py-0">
                 Contact Us
               </Link>
             </li>
           </ul>
         </div>
 
-        <div className="text-sm">
-          <h3 className="font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink)]">
+        <div className="text-[0.92rem] md:text-sm">
+          <h3 className="font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)] md:tracking-[0.18em]">
             Contact Us
           </h3>
           <div className="mt-4 space-y-4">
@@ -75,8 +75,8 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="text-sm">
-          <h3 className="font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink)]">
+        <div className="text-[0.92rem] md:text-sm">
+          <h3 className="font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)] md:tracking-[0.18em]">
             Explore
           </h3>
           <ul className="mt-4 space-y-3">
@@ -84,7 +84,7 @@ export function SiteFooter() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="transition hover:text-slate-950"
+                  className="block border-b border-slate-200 py-2 transition hover:text-slate-950 md:border-b-0 md:py-0"
                 >
                   {item.label}
                 </Link>
@@ -93,7 +93,7 @@ export function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-slate-200 px-6 py-5 text-center text-xs text-slate-500 lg:px-10">
+      <div className="border-t border-slate-200 px-4 py-5 text-center text-[0.72rem] text-slate-500 sm:px-6 md:text-xs lg:px-10">
         Copyright &copy; {new Date().getFullYear()} PatentZoom. Use of this
         website does not create an attorney-client relationship.
       </div>
