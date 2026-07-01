@@ -218,25 +218,6 @@ function SignatureModal({
   );
 }
 
-const monthOptions = [
-  "01",
-  "02",
-  "03",
-  "04",
-  "05",
-  "06",
-  "07",
-  "08",
-  "09",
-  "10",
-  "11",
-  "12",
-];
-
-const yearOptions = Array.from({ length: 12 }, (_, index) =>
-  String(new Date().getFullYear() + index),
-);
-
 export function IntakeStepTenPayment({
   serviceIntent,
   packageKey,
@@ -345,6 +326,18 @@ export function IntakeStepTenPayment({
     setShowSignatureModal(false);
   }
 
+  const paymentState = draft.paymentInformation?.stripeCheckoutStatus ?? null;
+  const paymentStateLabel =
+    paymentState === "paid"
+      ? "Paid"
+      : paymentState === "pending"
+        ? "Checkout started"
+        : paymentState === "expired"
+          ? "Expired"
+          : paymentState === "failed"
+            ? "Failed"
+            : "Ready for payment";
+
   return (
     <div className="space-y-8">
       <form action={action} className="space-y-8">
@@ -378,12 +371,10 @@ export function IntakeStepTenPayment({
             </Link>
             <button
               type="submit"
-              name="intent"
-              value="continue"
               disabled={pending}
               className="inline-flex rounded-[10px] bg-[#396aa2] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#2f5d91] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {pending ? "Submitting..." : "Submit >"}
+              {pending ? "Opening Stripe..." : "Continue to Secure Checkout >"}
             </button>
           </div>
         </div>
@@ -396,11 +387,11 @@ export function IntakeStepTenPayment({
 
         <div className="border-t border-slate-200 pt-6">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Select payment option
+            Secure payment handoff
           </p>
           <div className="mt-4 flex justify-center">
             <div className="inline-flex rounded-[10px] bg-[#396aa2] px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.08em] text-white">
-              Credit or debit card
+              Stripe Checkout
             </div>
           </div>
         </div>
@@ -408,132 +399,50 @@ export function IntakeStepTenPayment({
         <div className="grid gap-6 xl:grid-cols-[1fr_1.05fr]">
           <section className="rounded-[24px] border border-slate-200 bg-[#fbfbfd] p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#25306b]">
-              Option 1 credit or debit card
+              Stripe-hosted payment
+            </p>
+            <h3 className="mt-4 text-[1.9rem] font-light leading-9 tracking-[-0.04em] text-[#25306b]">
+              PatentZoom will send you to Stripe for the actual card payment.
+            </h3>
+            <p className="mt-4 text-sm leading-8 text-slate-600">
+              This intake step now keeps billing details and authorization in
+              PatentZoom, but all live card entry and payment capture happen on
+              Stripe&apos;s secure checkout page.
             </p>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label
-                  htmlFor="cardholderName"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  Name on card
-                </label>
-                <input
-                  id="cardholderName"
-                  name="cardholderName"
-                  defaultValue={draft.paymentInformation?.cardholderName ?? ""}
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                />
-                <FieldError errors={state.errors} name="cardholderName" />
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Payment status
+                </p>
+                <p className="mt-2 text-lg font-medium text-[#25306b]">
+                  {paymentStateLabel}
+                </p>
               </div>
+              <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Checkout method
+                </p>
+                <p className="mt-2 text-lg font-medium text-[#25306b]">
+                  Credit or debit card
+                </p>
+              </div>
+            </div>
 
-              <div>
-                <label
-                  htmlFor="cardNumber"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  Card number
-                </label>
-                <input
-                  id="cardNumber"
-                  name="cardNumber"
-                  inputMode="numeric"
-                  placeholder="1234 5678 9012 3456"
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                />
-                <FieldError errors={state.errors} name="cardNumber" />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="cardType"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  Card type
-                </label>
-                <select
-                  id="cardType"
-                  name="cardType"
-                  defaultValue={draft.paymentInformation?.cardType ?? ""}
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                >
-                  <option value="">Select card type</option>
-                  <option value="Visa">Visa</option>
-                  <option value="Mastercard">Mastercard</option>
-                  <option value="American Express">American Express</option>
-                  <option value="Discover">Discover</option>
-                </select>
-                <FieldError errors={state.errors} name="cardType" />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="expMonth"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  Exp month
-                </label>
-                <select
-                  id="expMonth"
-                  name="expMonth"
-                  defaultValue={draft.paymentInformation?.expMonth ?? ""}
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                >
-                  <option value="">Exp month</option>
-                  {monthOptions.map((month) => (
-                    <option key={month} value={month}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
-                <FieldError errors={state.errors} name="expMonth" />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="expYear"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  Exp year
-                </label>
-                <select
-                  id="expYear"
-                  name="expYear"
-                  defaultValue={draft.paymentInformation?.expYear ?? ""}
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                >
-                  <option value="">Exp year</option>
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                <FieldError errors={state.errors} name="expYear" />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="cvv"
-                  className="text-sm font-semibold text-slate-600"
-                >
-                  CVV security code
-                </label>
-                <input
-                  id="cvv"
-                  name="cvv"
-                  inputMode="numeric"
-                  placeholder="123"
-                  className="mt-2 w-full rounded-[14px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
-                />
-                <FieldError errors={state.errors} name="cvv" />
-              </div>
+            <div className="mt-6 rounded-[18px] border border-slate-200 bg-white p-5">
+              <p className="text-sm font-semibold text-slate-700">
+                What happens next
+              </p>
+              <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
+                <li>1. Save this billing and authorization step inside your intake.</li>
+                <li>2. Open the live Stripe Checkout page in a secure redirect.</li>
+                <li>3. Return to PatentZoom automatically after payment succeeds.</li>
+              </ul>
             </div>
 
             <div className="mt-6 rounded-[18px] border border-dashed border-[#396aa2]/30 bg-white p-5">
               <p className="text-sm font-semibold text-slate-700">
-                Save card information for future use?
+                Payment authorization signature
               </p>
               <button
                 type="button"
@@ -550,7 +459,8 @@ export function IntakeStepTenPayment({
                 {authorizationTimestamp}
               </div>
               <p className="mt-3 text-sm leading-7 text-slate-500">
-                Full card number and CVV are validated in this step, but PatentZoom only keeps masked payment summary data in the local draft.
+                PatentZoom stores this signature with the intake before handing
+                payment over to Stripe.
               </p>
               <FieldError errors={state.errors} name="authorizationSignatureDataUrl" />
 
@@ -613,6 +523,10 @@ export function IntakeStepTenPayment({
                   <span>{totalLabel}</span>
                 </div>
               </div>
+              <p className="mt-4 text-sm leading-7 text-slate-500">
+                You&apos;ll review and pay this total on Stripe before PatentZoom
+                marks the intake as complete.
+              </p>
             </article>
 
             <article className="rounded-[24px] border border-slate-200 bg-[#fbfbfd] p-6">
@@ -820,12 +734,10 @@ export function IntakeStepTenPayment({
           </Link>
           <button
             type="submit"
-            name="intent"
-            value="continue"
             disabled={pending}
             className="inline-flex rounded-[10px] bg-[#396aa2] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#2f5d91] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {pending ? "Submitting..." : "Submit >"}
+            {pending ? "Opening Stripe..." : "Continue to Secure Checkout >"}
           </button>
         </div>
       </form>

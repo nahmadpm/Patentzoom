@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import {
+  getCurrentUserContext,
   advanceOrderSummaryStep,
   saveEngagementAgreementStep,
   saveAssignmentDecision,
@@ -14,7 +15,9 @@ import {
   savePaymentInformationStep,
   savePackageSelectionStep,
 } from "@/lib/auth";
-import { normalizeServiceIntent } from "@/lib/service-intents";
+import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
+import { getAppUrl, getStripeClient, getStripeCurrency } from "@/lib/stripe";
+import { getIntakeHref, normalizeServiceIntent } from "@/lib/service-intents";
 
 export type IntakeActionState = {
   errors?: Record<string, string[]>;
@@ -116,30 +119,6 @@ const stepNineSchema = z.object({
 });
 
 const stepTenSchema = z.object({
-  cardholderName: z
-    .string()
-    .trim()
-    .min(2, { message: "Name on card is required." }),
-  cardNumber: z
-    .string()
-    .trim()
-    .regex(/^[0-9 ]{13,23}$/, { message: "Please enter a valid card number." }),
-  cardType: z
-    .string()
-    .trim()
-    .min(2, { message: "Please select a card type." }),
-  expMonth: z
-    .string()
-    .trim()
-    .min(1, { message: "Please choose an expiry month." }),
-  expYear: z
-    .string()
-    .trim()
-    .min(4, { message: "Please choose an expiry year." }),
-  cvv: z
-    .string()
-    .trim()
-    .regex(/^[0-9]{3,4}$/, { message: "Please enter a valid CVV." }),
   billingSameAsProfile: z.enum(["true", "false"]),
   billingFirstName: z
     .string()
@@ -534,12 +513,6 @@ export async function saveStepTenAction(
   }
 
   const validated = stepTenSchema.safeParse({
-    cardholderName: formData.get("cardholderName"),
-    cardNumber: formData.get("cardNumber"),
-    cardType: formData.get("cardType"),
-    expMonth: formData.get("expMonth"),
-    expYear: formData.get("expYear"),
-    cvv: formData.get("cvv"),
     billingSameAsProfile: String(formData.get("billingSameAsProfile") ?? "false"),
     billingFirstName: formData.get("billingFirstName"),
     billingLastName: formData.get("billingLastName"),
@@ -558,16 +531,99 @@ export async function saveStepTenAction(
     } satisfies IntakeActionState;
   }
 
-  const digitsOnly = validated.data.cardNumber.replace(/\D/g, "");
-  const cardLastFour = digitsOnly.slice(-4);
-  const intent = String(formData.get("intent") ?? "save").trim();
+  const context = await getCurrentUserContext();
+
+  if (!context) {
+    return {
+      message: "Your session expired. Please log in again.",
+    } satisfies IntakeActionState;
+  }
+
+  const packageKey =
+    String(formData.get("packageKey") ?? "").trim() || null;
+  const packageLabel =
+    String(formData.get("packageLabel") ?? "").trim() || null;
+  const orderSummary = buildIntakeOrderSummary({
+    serviceIntent,
+    packageKey,
+    packageLabel,
+    searchOption:
+      context.user.intakeDrafts?.[serviceIntent]?.searchOption ?? null,
+    currency: getStripeCurrency(),
+  });
+
+  if (!orderSummary.ok) {
+    return {
+      message: orderSummary.message,
+    } satisfies IntakeActionState;
+  }
+
+  const caseNumber = `PZ${context.session.userId
+    .replace(/-/g, "")
+    .slice(0, 8)
+    .toUpperCase()}`;
+  const checkoutBaseHref = getIntakeHref(serviceIntent, orderSummary.packageKey);
+  const cancelUrl = `${getAppUrl()}${checkoutBaseHref}${
+    checkoutBaseHref.includes("?") ? "&" : "?"
+  }step=10&checkout=canceled`;
+
+  let checkoutSession;
+
+  try {
+    const stripe = getStripeClient();
+    checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: context.user.email,
+      billing_address_collection: "required",
+      client_reference_id: context.user.id,
+      success_url: `${getAppUrl()}/api/stripe/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      line_items: orderSummary.stripeLineItems.map((item) => ({
+        quantity: 1,
+        price_data: {
+          currency: orderSummary.currency,
+          unit_amount: item.unitAmountCents,
+          product_data: {
+            name: item.label,
+          },
+        },
+      })),
+      metadata: {
+        userId: context.user.id,
+        serviceIntent,
+        packageKey: orderSummary.packageKey ?? "",
+        packageLabel: orderSummary.packageLabel,
+        searchOption:
+          context.user.intakeDrafts?.[serviceIntent]?.searchOption ?? "none",
+        caseNumber,
+      },
+      payment_intent_data: {
+        metadata: {
+          userId: context.user.id,
+          serviceIntent,
+          packageKey: orderSummary.packageKey ?? "",
+          packageLabel: orderSummary.packageLabel,
+          caseNumber,
+        },
+      },
+    });
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Stripe could not create the checkout session right now.",
+    } satisfies IntakeActionState;
+  }
+
+  if (!checkoutSession.url) {
+    return {
+      message: "Stripe did not return a checkout URL. Please try again.",
+    } satisfies IntakeActionState;
+  }
+
   const result = await savePaymentInformationStep({
     serviceIntent,
-    cardholderName: validated.data.cardholderName,
-    cardType: validated.data.cardType,
-    cardLastFour,
-    expMonth: validated.data.expMonth,
-    expYear: validated.data.expYear,
     billingSameAsProfile: validated.data.billingSameAsProfile === "true",
     billingFirstName: validated.data.billingFirstName,
     billingLastName: validated.data.billingLastName,
@@ -578,9 +634,19 @@ export async function saveStepTenAction(
     billingZip: validated.data.billingZip,
     billingCountry: validated.data.billingCountry,
     authorizationSignatureDataUrl: validated.data.authorizationSignatureDataUrl,
-    pendingPackageKey: String(formData.get("packageKey") ?? "").trim() || null,
-    pendingPackageLabel: String(formData.get("packageLabel") ?? "").trim() || null,
-    continueToNextStep: intent === "continue",
+    stripeCheckoutSessionId: checkoutSession.id,
+    stripeCheckoutStatus: "pending",
+    stripePaymentIntentId:
+      typeof checkoutSession.payment_intent === "string"
+        ? checkoutSession.payment_intent
+        : null,
+    stripePaymentStatus: checkoutSession.payment_status,
+    stripeCustomerEmail: context.user.email,
+    stripeCurrency: orderSummary.currency,
+    stripeAmountSubtotal: orderSummary.amountSubtotalCents,
+    stripeAmountTotal: orderSummary.amountTotalCents,
+    pendingPackageKey: orderSummary.packageKey,
+    pendingPackageLabel: orderSummary.packageLabel,
   });
 
   if (!result.ok) {
@@ -589,5 +655,5 @@ export async function saveStepTenAction(
     } satisfies IntakeActionState;
   }
 
-  redirect(result.redirectTo);
+  redirect(checkoutSession.url);
 }

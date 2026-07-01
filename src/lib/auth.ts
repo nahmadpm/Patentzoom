@@ -79,11 +79,6 @@ export type IntakeDraft = {
     signedAt: string | null;
   } | null;
   paymentInformation: {
-    cardholderName: string;
-    cardType: string;
-    cardLastFour: string;
-    expMonth: string;
-    expYear: string;
     billingSameAsProfile: boolean;
     billingFirstName: string;
     billingLastName: string;
@@ -95,6 +90,15 @@ export type IntakeDraft = {
     billingCountry: string;
     authorizationSignatureDataUrl: string;
     authorizedAt: string | null;
+    stripeCheckoutSessionId: string | null;
+    stripeCheckoutStatus: "pending" | "paid" | "expired" | "failed" | null;
+    stripePaymentIntentId: string | null;
+    stripePaymentStatus: string | null;
+    stripeCustomerEmail: string | null;
+    stripeCurrency: string | null;
+    stripeAmountSubtotal: number | null;
+    stripeAmountTotal: number | null;
+    paidAt: string | null;
   } | null;
   packageKey: string | null;
   packageLabel: string | null;
@@ -298,6 +302,52 @@ export function getIntakeDraft(
   serviceIntent: ServiceIntent,
 ) {
   return user.intakeDrafts?.[serviceIntent] ?? null;
+}
+
+async function updateIntakeDraftByUserId(input: {
+  userId: string;
+  serviceIntent: ServiceIntent;
+  currentStep: number;
+  patch: Partial<IntakeDraft>;
+}) {
+  const store = await readAuthStore();
+  const userIndex = store.users.findIndex((entry) => entry.id === input.userId);
+
+  if (userIndex === -1) {
+    return {
+      ok: false as const,
+      message: "We could not load your account for the Stripe update.",
+    };
+  }
+
+  const hydratedUser = hydrateUser(store.users[userIndex]);
+  const now = new Date().toISOString();
+  const existingDraft = hydratedUser.intakeDrafts?.[input.serviceIntent];
+
+  if (!existingDraft) {
+    return {
+      ok: false as const,
+      message: "We could not find the intake draft for this Stripe update.",
+    };
+  }
+
+  const nextDraft: IntakeDraft = {
+    ...existingDraft,
+    currentStep: input.currentStep,
+    updatedAt: now,
+    ...input.patch,
+  };
+
+  hydratedUser.intakeDrafts = hydratedUser.intakeDrafts ?? {};
+  hydratedUser.intakeDrafts[input.serviceIntent] = nextDraft;
+  hydratedUser.updatedAt = now;
+  store.users[userIndex] = hydratedUser;
+  await writeAuthStore(store);
+
+  return {
+    ok: true as const,
+    draft: nextDraft,
+  };
 }
 
 function buildIntakeStepHref(
@@ -947,11 +997,6 @@ export async function saveEngagementAgreementStep(input: {
 
 export async function savePaymentInformationStep(input: {
   serviceIntent: ServiceIntent;
-  cardholderName: string;
-  cardType: string;
-  cardLastFour: string;
-  expMonth: string;
-  expYear: string;
   billingSameAsProfile: boolean;
   billingFirstName: string;
   billingLastName: string;
@@ -962,9 +1007,16 @@ export async function savePaymentInformationStep(input: {
   billingZip: string;
   billingCountry: string;
   authorizationSignatureDataUrl: string;
+  stripeCheckoutSessionId: string;
+  stripeCheckoutStatus: "pending";
+  stripePaymentIntentId: string | null;
+  stripePaymentStatus: string;
+  stripeCustomerEmail: string;
+  stripeCurrency: string;
+  stripeAmountSubtotal: number;
+  stripeAmountTotal: number;
   pendingPackageKey: string | null;
   pendingPackageLabel: string | null;
-  continueToNextStep: boolean;
 }) {
   const authorizedAt = new Date().toISOString();
 
@@ -972,15 +1024,10 @@ export async function savePaymentInformationStep(input: {
     serviceIntent: input.serviceIntent,
     pendingPackageKey: input.pendingPackageKey,
     pendingPackageLabel: input.pendingPackageLabel,
-    currentStep: input.continueToNextStep ? 11 : 10,
-    redirectStep: input.continueToNextStep ? 11 : 10,
+    currentStep: 10,
+    redirectStep: 10,
     patch: {
       paymentInformation: {
-        cardholderName: input.cardholderName.trim(),
-        cardType: input.cardType.trim(),
-        cardLastFour: input.cardLastFour.trim(),
-        expMonth: input.expMonth.trim(),
-        expYear: input.expYear.trim(),
         billingSameAsProfile: input.billingSameAsProfile,
         billingFirstName: input.billingFirstName.trim(),
         billingLastName: input.billingLastName.trim(),
@@ -992,6 +1039,73 @@ export async function savePaymentInformationStep(input: {
         billingCountry: input.billingCountry.trim(),
         authorizationSignatureDataUrl: input.authorizationSignatureDataUrl,
         authorizedAt,
+        stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+        stripeCheckoutStatus: input.stripeCheckoutStatus,
+        stripePaymentIntentId: input.stripePaymentIntentId,
+        stripePaymentStatus: input.stripePaymentStatus,
+        stripeCustomerEmail: input.stripeCustomerEmail.trim(),
+        stripeCurrency: input.stripeCurrency.trim(),
+        stripeAmountSubtotal: input.stripeAmountSubtotal,
+        stripeAmountTotal: input.stripeAmountTotal,
+        paidAt: null,
+      },
+    },
+  });
+}
+
+export async function markStripeCheckoutStatus(input: {
+  userId: string;
+  serviceIntent: ServiceIntent;
+  stripeCheckoutSessionId: string | null;
+  stripeCheckoutStatus: "pending" | "paid" | "expired" | "failed";
+  stripePaymentIntentId: string | null;
+  stripePaymentStatus: string | null;
+  stripeCustomerEmail: string | null;
+  stripeCurrency: string | null;
+  stripeAmountSubtotal: number | null;
+  stripeAmountTotal: number | null;
+  paidAt: string | null;
+}) {
+  const context = await getCurrentUserContext();
+  const fallbackEmail =
+    context?.session.userId === input.userId ? context.session.email : null;
+  const fallbackStore = await readAuthStore();
+  const fallbackUser = fallbackStore.users.find((entry) => entry.id === input.userId);
+  const existingDraft =
+    fallbackUser?.intakeDrafts?.[input.serviceIntent] ?? null;
+  const existingPayment = existingDraft?.paymentInformation;
+
+  if (!existingDraft || !existingPayment) {
+    return {
+      ok: false as const,
+      message: "We could not locate the stored intake payment details for Stripe.",
+    };
+  }
+
+  return updateIntakeDraftByUserId({
+    userId: input.userId,
+    serviceIntent: input.serviceIntent,
+    currentStep: input.stripeCheckoutStatus === "paid" ? 11 : 10,
+    patch: {
+      paymentInformation: {
+        ...existingPayment,
+        stripeCheckoutSessionId:
+          input.stripeCheckoutSessionId ?? existingPayment.stripeCheckoutSessionId,
+        stripeCheckoutStatus: input.stripeCheckoutStatus,
+        stripePaymentIntentId:
+          input.stripePaymentIntentId ?? existingPayment.stripePaymentIntentId,
+        stripePaymentStatus:
+          input.stripePaymentStatus ?? existingPayment.stripePaymentStatus,
+        stripeCustomerEmail:
+          input.stripeCustomerEmail ??
+          existingPayment.stripeCustomerEmail ??
+          fallbackEmail,
+        stripeCurrency: input.stripeCurrency ?? existingPayment.stripeCurrency,
+        stripeAmountSubtotal:
+          input.stripeAmountSubtotal ?? existingPayment.stripeAmountSubtotal,
+        stripeAmountTotal:
+          input.stripeAmountTotal ?? existingPayment.stripeAmountTotal,
+        paidAt: input.paidAt ?? existingPayment.paidAt,
       },
     },
   });

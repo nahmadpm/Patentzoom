@@ -12,6 +12,7 @@ import { IntakeStepThreeForm } from "@/components/intake-step-three-form";
 import { IntakeStepSevenForm } from "@/components/intake-step-seven-form";
 import { IntakeStepSixForm } from "@/components/intake-step-six-form";
 import { getCurrentUserContext, getIntakeDraft } from "@/lib/auth";
+import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
 import { contactDetails, referenceServicePages } from "@/lib/site-data";
 import {
   getIntakeHref,
@@ -92,10 +93,14 @@ export default async function IntakePage({
   searchParams,
 }: {
   params: Promise<{ service: string }>;
-  searchParams: Promise<{ package?: string; step?: string }>;
+  searchParams: Promise<{ package?: string; step?: string; checkout?: string }>;
 }) {
   const { service } = await params;
-  const { package: packageParam, step: requestedStep } = await searchParams;
+  const {
+    package: packageParam,
+    step: requestedStep,
+    checkout: checkoutStatus,
+  } = await searchParams;
   const normalizedService = normalizeServiceIntent(service);
   const context = await getCurrentUserContext();
 
@@ -202,37 +207,59 @@ export default async function IntakePage({
   const selectedPackageCard = packageCards.find(
     (item) => item.key === (draft?.packageKey ?? selectedPackageKey),
   );
-  const packageTotal =
-    selectedPackageCard?.price ?? (selectedPackageLabel ? "Custom" : "$0");
-  const searchLineValue =
-    draft?.searchOption === "patent-search-report"
-      ? "$295"
-      : draft?.searchOption === "review-existing-search-report"
-        ? "$0"
-        : "$0";
-  const orderLines = [
-    {
-      label: selectedPackageCard?.name ?? selectedPackageLabel ?? "Selected package",
-      value: packageTotal,
-    },
-    {
-      label: searchOptionLabel,
-      value: searchLineValue,
-    },
-  ] as const;
-  const subtotalLabel =
-    packageTotal === "Custom"
-      ? "Custom"
-      : draft?.searchOption === "patent-search-report"
-        ? "Package + $295"
-        : packageTotal;
-  const ccFeeLabel = "$0";
+  const checkoutSummary = buildIntakeOrderSummary({
+    serviceIntent: normalizedService,
+    packageKey: draft?.packageKey ?? selectedPackageKey,
+    packageLabel:
+      draft?.packageLabel ??
+      selectedPackageCard?.name ??
+      selectedPackageLabel,
+    searchOption: draft?.searchOption ?? null,
+  });
+  const orderLines = checkoutSummary.ok
+    ? checkoutSummary.orderLines
+    : ([
+        {
+          label:
+            selectedPackageCard?.name ??
+            selectedPackageLabel ??
+            "Selected package",
+          value: selectedPackageCard?.price ?? "$0",
+        },
+      ] as const);
+  const subtotalLabel = checkoutSummary.ok
+    ? checkoutSummary.subtotalLabel
+    : selectedPackageCard?.price ?? "$0";
+  const ccFeeLabel = checkoutSummary.ok ? checkoutSummary.ccFeeLabel : "$0.00";
+  const totalLabel = checkoutSummary.ok
+    ? checkoutSummary.totalLabel
+    : subtotalLabel;
   const caseNumber = `PZ${session.userId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
   return (
     <main className="bg-[#f8f9fb] py-10 text-slate-900">
       <div className="mx-auto w-full max-w-7xl px-6 lg:px-10">
         <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:p-10">
+          {checkoutStatus === "canceled" && currentStep === 10 ? (
+            <div className="mb-6 rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-7 text-amber-800">
+              Stripe checkout was canceled before payment was completed. Your
+              intake details are still saved here, so you can restart checkout
+              whenever you&apos;re ready.
+            </div>
+          ) : null}
+          {checkoutStatus === "processing" && currentStep === 10 ? (
+            <div className="mb-6 rounded-[18px] border border-sky-200 bg-sky-50 px-5 py-4 text-sm leading-7 text-sky-800">
+              Stripe returned the checkout session, and PatentZoom is still
+              confirming the payment result. Refresh in a moment if this state
+              lingers.
+            </div>
+          ) : null}
+          {checkoutStatus === "success" && currentStep === 11 ? (
+            <div className="mb-6 rounded-[18px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-800">
+              Payment was received successfully in Stripe, and the intake has
+              moved into completion.
+            </div>
+          ) : null}
           <div className="flex flex-col gap-6 border-b border-slate-200 pb-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -282,8 +309,8 @@ export default async function IntakePage({
                                   : currentStep === 9
                                     ? "Order summary is saved. Review the engagement terms, add the signer title, and complete the client signature before moving into payment details."
                                     : currentStep === 10
-                                      ? "The engagement agreement is saved. Enter payment details, confirm billing information, and sign the card authorization before submitting this intake."
-                                      : "Payment information is saved. The next implementation layer can now handle the completion step."}
+                                      ? "The engagement agreement is saved. Confirm billing information, submit the payment authorization, and continue into Stripe Checkout."
+                                      : "Stripe payment is recorded for this intake, and PatentZoom can now move into the post-payment completion state."}
                 </p>
               </div>
 
@@ -463,7 +490,7 @@ export default async function IntakePage({
                     draft={draft}
                     orderLines={orderLines}
                     totalLabel={
-                      subtotalLabel
+                      totalLabel
                     }
                   />
                 </div>
@@ -483,7 +510,7 @@ export default async function IntakePage({
                     draft={draft}
                     orderLines={orderLines}
                     totalLabel={
-                      subtotalLabel
+                      totalLabel
                     }
                   />
                 </div>
@@ -510,7 +537,7 @@ export default async function IntakePage({
                     orderLines={orderLines}
                     subtotalLabel={subtotalLabel}
                     ccFeeLabel={ccFeeLabel}
-                    totalLabel={subtotalLabel}
+                    totalLabel={totalLabel}
                   />
                 </div>
               ) : (
@@ -523,10 +550,10 @@ export default async function IntakePage({
                       Continue into completion
                     </h2>
                     <p className="mt-4 text-sm leading-8 text-slate-600">
-                      Payment details are now saved for this service, so the
-                      intake can advance into the final completion state. The
-                      next build-out can turn this screen into the finished
-                      post-payment confirmation experience.
+                      Stripe payment is now recorded for this service, so the
+                      intake has moved into the completion state. This screen
+                      can now serve as the live payment confirmation and handoff
+                      summary for PatentZoom.
                     </p>
                   </div>
 
@@ -540,7 +567,7 @@ export default async function IntakePage({
                       </p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">
                         The saved package and search option are now attached to
-                        the signed intake that has moved through payment capture.
+                        the signed intake that has completed Stripe payment.
                       </p>
                     </article>
 
@@ -552,8 +579,8 @@ export default async function IntakePage({
                         {searchOptionLabel}
                       </p>
                       <p className="mt-3 text-sm leading-7 text-slate-600">
-                        This search preference is already included in the payment
-                        summary and completion handoff.
+                        This search preference is already included in the Stripe
+                        payment summary and completion handoff.
                       </p>
                     </article>
                   </div>
@@ -573,7 +600,7 @@ export default async function IntakePage({
                         Internal next-step handoff
                       </div>
                       <div className="rounded-[18px] bg-[#f8f9fb] px-5 py-4 text-sm leading-7 text-slate-700">
-                        Completion timeline summary
+                        Paid-intake timeline summary
                       </div>
                     </div>
                     <div className="mt-6 flex flex-wrap gap-3">
@@ -623,7 +650,7 @@ export default async function IntakePage({
                                         ? "The order summary is saved, and the intake now needs the engagement agreement signature before Step 10."
                                         : currentStep === 10
                                           ? "The engagement agreement is saved, and the intake now needs payment details before completion."
-                                          : "Payment information is saved, and the intake is now positioned for completion."}
+                                          : "Stripe payment is saved, and the intake is now positioned for completion."}
                     </p>
                   </div>
                   <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
