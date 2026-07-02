@@ -141,8 +141,9 @@ export function IntakeStepFiveForm({
             Upload Files
           </p>
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Attach supporting invention materials here. You can upload up to 10
-            files per save, with a 20 MB limit per file.
+            Attach supporting invention materials here. You can upload up to 5
+            files per save, with a 20 MB limit per file and a 50 MB total per
+            submission.
           </p>
           <div className="mt-4 rounded-[16px] border border-dashed border-slate-300 bg-[#f8f9fb] px-4 py-5">
             <input

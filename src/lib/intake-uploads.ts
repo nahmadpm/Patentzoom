@@ -7,7 +7,8 @@ import type { ServiceIntent } from "@/lib/service-intents";
 
 const UPLOAD_ROOT = join(process.cwd(), ".codex-temp", "intake-uploads");
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
-const MAX_FILES_PER_SUBMISSION = 10;
+const MAX_FILES_PER_SUBMISSION = 5;
+const MAX_TOTAL_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 function sanitizeFilename(name: string) {
   const extension = extname(name).toLowerCase();
@@ -51,6 +52,15 @@ export async function saveIntakeUploads(input: {
     return {
       ok: false as const,
       message: `Please upload no more than ${MAX_FILES_PER_SUBMISSION} files at a time.`,
+    };
+  }
+
+  const totalUploadSize = files.reduce((sum, file) => sum + file.size, 0);
+
+  if (totalUploadSize > MAX_TOTAL_UPLOAD_BYTES) {
+    return {
+      ok: false as const,
+      message: "Please keep the total upload size under 50 MB per save.",
     };
   }
 
