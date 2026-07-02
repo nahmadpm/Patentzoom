@@ -16,6 +16,7 @@ import {
   savePackageSelectionStep,
 } from "@/lib/auth";
 import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
+import { saveIntakeUploads } from "@/lib/intake-uploads";
 import { getAppUrl, getStripeClient, getStripeCurrency } from "@/lib/stripe";
 import { getIntakeHref, normalizeServiceIntent } from "@/lib/service-intents";
 
@@ -319,10 +320,38 @@ export async function saveStepFiveAction(
     } satisfies IntakeActionState;
   }
 
+  const context = await getCurrentUserContext();
+
+  if (!context) {
+    return {
+      message: "Your session expired. Please log in again.",
+    } satisfies IntakeActionState;
+  }
+
+  const uploadedFiles = formData
+    .getAll("attachments")
+    .filter((value): value is File => value instanceof File && value.size > 0);
+
+  const uploadResult = await saveIntakeUploads({
+    userId: context.user.id,
+    serviceIntent,
+    files: uploadedFiles,
+  });
+
+  if (!uploadResult.ok) {
+    return {
+      message: uploadResult.message,
+    } satisfies IntakeActionState;
+  }
+
+  const existingUploads =
+    context.user.intakeDrafts?.[serviceIntent]?.inventionDetails?.uploads ?? [];
+
   const intent = String(formData.get("intent") ?? "save").trim();
   const result = await saveInventionDetailsStep({
     serviceIntent,
     description: validated.data.description,
+    uploads: [...existingUploads, ...uploadResult.uploads],
     pendingPackageKey: String(formData.get("packageKey") ?? "").trim() || null,
     pendingPackageLabel: String(formData.get("packageLabel") ?? "").trim() || null,
     continueToNextStep: intent === "continue",

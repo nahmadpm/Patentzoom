@@ -7,9 +7,22 @@ import {
   type IntakeActionState,
   saveStepFiveAction,
 } from "@/app/actions/intake";
+import type { UploadedIntakeFile } from "@/lib/intake-upload-types";
 import { type ServiceIntent } from "@/lib/service-intents";
 
 const initialState: IntakeActionState = {};
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${bytes} B`;
+}
 
 function FieldError({
   errors,
@@ -34,6 +47,7 @@ export function IntakeStepFiveForm({
   previousHref,
   inventionTitle,
   defaultDescription,
+  uploadedFiles,
 }: {
   serviceIntent: ServiceIntent;
   packageKey: string | null;
@@ -41,11 +55,12 @@ export function IntakeStepFiveForm({
   previousHref: string;
   inventionTitle: string;
   defaultDescription: string;
+  uploadedFiles: UploadedIntakeFile[];
 }) {
   const [state, action, pending] = useActionState(saveStepFiveAction, initialState);
 
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} encType="multipart/form-data" className="space-y-8">
       <input type="hidden" name="serviceIntent" value={serviceIntent} />
       <input type="hidden" name="packageKey" value={packageKey ?? ""} />
       <input type="hidden" name="packageLabel" value={packageLabel ?? ""} />
@@ -126,14 +141,56 @@ export function IntakeStepFiveForm({
             Upload Files
           </p>
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Upload support for invention files is planned for the next phase.
-            For now, include the important file details inside the description
-            box above and keep your source material ready for the live
-            engagement.
+            Attach supporting invention materials here. You can upload up to 10
+            files per save, with a 20 MB limit per file.
           </p>
-          <div className="mt-4 rounded-[16px] border border-dashed border-slate-300 bg-[#f8f9fb] px-4 py-6 text-sm text-slate-500">
-            File upload table placeholder. We will wire real uploads in the next
-            implementation phase.
+          <div className="mt-4 rounded-[16px] border border-dashed border-slate-300 bg-[#f8f9fb] px-4 py-5">
+            <input
+              type="file"
+              name="attachments"
+              multiple
+              className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-[#fb4522] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#e63c18]"
+            />
+            <p className="mt-3 text-xs leading-6 text-slate-500">
+              Recommended for sketches, diagrams, draft specs, screenshots,
+              PDFs, and invention notes.
+            </p>
+          </div>
+          {uploadedFiles.length ? (
+            <div className="mt-4 rounded-[16px] border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Uploaded with this draft
+              </div>
+              <ul className="divide-y divide-slate-200">
+                {uploadedFiles.map((file) => (
+                  <li
+                    key={file.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium text-slate-800">{file.originalName}</p>
+                      <p className="text-xs text-slate-500">
+                        {file.mimeType || "File"} · {formatFileSize(file.size)}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                      Saved
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[16px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+              No files have been uploaded to this intake yet.
+            </div>
+          )}
+          {state.message?.toLowerCase().includes("upload") ? (
+            <p className="mt-3 text-sm text-red-600">{state.message}</p>
+          ) : null}
+          <div className="mt-4 rounded-[16px] border border-[#fb4522]/12 bg-[#fff7f4] px-4 py-4 text-sm leading-7 text-slate-600">
+            Save the step after choosing files so PatentZoom can store them with
+            the current invention draft.
           </div>
         </div>
       </div>

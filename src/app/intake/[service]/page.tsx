@@ -433,6 +433,7 @@ export default async function IntakePage({
                     previousHref={stepFourHref}
                     inventionTitle={draft?.inventionName ?? "New Invention"}
                     defaultDescription={draft?.inventionDetails?.description ?? ""}
+                    uploadedFiles={draft?.inventionDetails?.uploads ?? []}
                   />
                 </div>
               ) : currentStep === 6 ? (

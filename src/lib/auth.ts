@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 
 import { cookies } from "next/headers";
 
+import type { UploadedIntakeFile } from "@/lib/intake-upload-types";
 import {
   type ServiceIntent,
   getIntakeHref,
@@ -58,6 +59,7 @@ export type IntakeDraft = {
   assignmentRequired: "yes" | "no" | null;
   inventionDetails: {
     description: string;
+    uploads: UploadedIntakeFile[];
   } | null;
   inventionInformation: {
     publicDisclosure: string;
@@ -879,6 +881,7 @@ export async function saveAssignmentDecision(input: {
 export async function saveInventionDetailsStep(input: {
   serviceIntent: ServiceIntent;
   description: string;
+  uploads: UploadedIntakeFile[];
   pendingPackageKey: string | null;
   pendingPackageLabel: string | null;
   continueToNextStep: boolean;
@@ -892,6 +895,7 @@ export async function saveInventionDetailsStep(input: {
     patch: {
       inventionDetails: {
         description: input.description.trim(),
+        uploads: input.uploads,
       },
     },
   });
