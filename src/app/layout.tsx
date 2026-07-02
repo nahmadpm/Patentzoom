@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
+import { LayoutChrome } from "@/components/layout-chrome";
 
 import "./globals.css";
 
@@ -38,11 +37,7 @@ export default function RootLayout({
       className={`${manrope.variable} ${cormorant.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-slate-950 text-white">
-        <div className="relative flex min-h-screen flex-col">
-          <SiteHeader />
-          <div className="flex-1">{children}</div>
-          <SiteFooter />
-        </div>
+        <LayoutChrome>{children}</LayoutChrome>
       </body>
     </html>
   );

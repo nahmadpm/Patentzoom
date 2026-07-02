@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { saveConsultationSubmission } from "@/lib/consultations";
+
 type ConsultationPayload = {
   name?: string;
   email?: string;
@@ -24,8 +26,16 @@ export async function POST(request: Request) {
     );
   }
 
+  await saveConsultationSubmission({
+    name,
+    email,
+    company: body.company?.trim(),
+    phone,
+    message,
+  });
+
   return NextResponse.json({
     message:
-      "Thanks for reaching out. This starter endpoint is ready to connect to email and CRM delivery next.",
+      "Thanks for reaching out. Your consultation request has been saved for the PatentZoom team.",
   });
 }

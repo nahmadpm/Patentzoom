@@ -18,7 +18,7 @@ const AUTH_SECRET =
   process.env.PATENTZOOM_AUTH_SECRET ?? "patentzoom-dev-session-secret";
 const AUTH_STORE_PATH = join(process.cwd(), ".codex-temp", "auth-store.json");
 
-type StoredUser = {
+export type StoredUser = {
   id: string;
   firstName: string;
   lastName: string;
@@ -139,6 +139,11 @@ async function readAuthStore() {
   await ensureAuthStore();
   const raw = await readFile(AUTH_STORE_PATH, "utf8");
   return JSON.parse(raw) as AuthStore;
+}
+
+export async function listStoredUsers() {
+  const store = await readAuthStore();
+  return store.users.map(hydrateUser);
 }
 
 async function writeAuthStore(store: AuthStore) {
