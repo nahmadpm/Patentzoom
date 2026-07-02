@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { markStripeCheckoutStatus } from "@/lib/auth";
-import { getStripeClient } from "@/lib/stripe";
+import { getAppUrl, getStripeClient } from "@/lib/stripe";
 import { getIntakeHref, normalizeServiceIntent } from "@/lib/service-intents";
 
 export const runtime = "nodejs";
@@ -23,11 +23,21 @@ function buildStepHref(
   return `${baseHref}${baseHref.includes("?") ? "&" : "?"}step=${step}&checkout=${checkoutState}`;
 }
 
+function buildRedirectUrl(request: NextRequest, href: string) {
+  try {
+    return new URL(href, `${getAppUrl()}/`);
+  } catch {
+    return new URL(href, request.url);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get("session_id");
 
   if (!sessionId) {
-    return NextResponse.redirect(new URL("/account?checkout=error", request.url));
+    return NextResponse.redirect(
+      buildRedirectUrl(request, "/account?checkout=error"),
+    );
   }
 
   try {
@@ -42,7 +52,9 @@ export async function GET(request: NextRequest) {
     const userId = checkoutSession.metadata?.userId ?? null;
 
     if (!serviceIntent || !userId) {
-      return NextResponse.redirect(new URL("/account?checkout=error", request.url));
+      return NextResponse.redirect(
+        buildRedirectUrl(request, "/account?checkout=error"),
+      );
     }
 
     if (checkoutSession.payment_status === "paid") {
@@ -64,14 +76,22 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.redirect(
-        new URL(buildStepHref(serviceIntent, packageKey, 11, "success"), request.url),
+        buildRedirectUrl(
+          request,
+          buildStepHref(serviceIntent, packageKey, 11, "success"),
+        ),
       );
     }
 
     return NextResponse.redirect(
-      new URL(buildStepHref(serviceIntent, packageKey, 10, "processing"), request.url),
+      buildRedirectUrl(
+        request,
+        buildStepHref(serviceIntent, packageKey, 10, "processing"),
+      ),
     );
   } catch {
-    return NextResponse.redirect(new URL("/account?checkout=error", request.url));
+    return NextResponse.redirect(
+      buildRedirectUrl(request, "/account?checkout=error"),
+    );
   }
 }
