@@ -18,6 +18,7 @@ const AUTH_COOKIE_NAME = "patentzoom_session";
 const AUTH_SECRET =
   process.env.PATENTZOOM_AUTH_SECRET ?? "patentzoom-dev-session-secret";
 const AUTH_STORE_PATH = join(process.cwd(), ".codex-temp", "auth-store.json");
+const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 10;
 
 export type StoredUser = {
   id: string;
@@ -549,7 +550,8 @@ async function setSession(session: SessionUser) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 14,
+    maxAge: AUTH_COOKIE_MAX_AGE_SECONDS,
+    expires: new Date(Date.now() + AUTH_COOKIE_MAX_AGE_SECONDS * 1000),
   });
 }
 
