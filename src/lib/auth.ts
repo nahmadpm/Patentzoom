@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { cookies } from "next/headers";
 
 import type { UploadedIntakeFile } from "@/lib/intake-upload-types";
+import { isDatabaseConfigured, withDatabase } from "@/lib/postgres";
 import {
   type ServiceIntent,
   getIntakeHref,
@@ -124,7 +125,31 @@ export type SessionUser = {
   pendingPackageLabel: string | null;
 };
 
-async function ensureAuthStore() {
+type UserRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  best_time: string;
+  password_hash: string | null;
+  reset_password_hash: string | null;
+  reset_password_expires_at: string | Date | null;
+  reset_password_sent_at: string | Date | null;
+  intake_drafts: unknown;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+let authSchemaPromise: Promise<void> | null = null;
+
+async function ensureAuthFileStore() {
   await mkdir(join(process.cwd(), ".codex-temp"), { recursive: true });
 
   try {
@@ -135,10 +160,263 @@ async function ensureAuthStore() {
   }
 }
 
-async function readAuthStore() {
-  await ensureAuthStore();
+async function readAuthFileStore() {
+  await ensureAuthFileStore();
   const raw = await readFile(AUTH_STORE_PATH, "utf8");
   return JSON.parse(raw) as AuthStore;
+}
+
+function normalizeDateString(value: string | Date | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(value).toISOString();
+}
+
+function mapUserRow(row: UserRow): StoredUser {
+  return hydrateUser({
+    id: row.id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    phone: row.phone,
+    address1: row.address1,
+    address2: row.address2,
+    city: row.city,
+    state: row.state,
+    zip: row.zip,
+    country: row.country,
+    bestTime: row.best_time,
+    passwordHash: row.password_hash,
+    resetPasswordHash: row.reset_password_hash,
+    resetPasswordExpiresAt: normalizeDateString(row.reset_password_expires_at),
+    resetPasswordSentAt: normalizeDateString(row.reset_password_sent_at),
+    intakeDrafts:
+      row.intake_drafts && typeof row.intake_drafts === "object"
+        ? (row.intake_drafts as Partial<Record<ServiceIntent, IntakeDraft>>)
+        : {},
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  });
+}
+
+async function upsertUserRow(user: StoredUser) {
+  await withDatabase(async (client) => {
+    await client.query(
+      `
+        INSERT INTO patentzoom_users (
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          address1,
+          address2,
+          city,
+          state,
+          zip,
+          country,
+          best_time,
+          password_hash,
+          reset_password_hash,
+          reset_password_expires_at,
+          reset_password_sent_at,
+          intake_drafts,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          address1 = EXCLUDED.address1,
+          address2 = EXCLUDED.address2,
+          city = EXCLUDED.city,
+          state = EXCLUDED.state,
+          zip = EXCLUDED.zip,
+          country = EXCLUDED.country,
+          best_time = EXCLUDED.best_time,
+          password_hash = EXCLUDED.password_hash,
+          reset_password_hash = EXCLUDED.reset_password_hash,
+          reset_password_expires_at = EXCLUDED.reset_password_expires_at,
+          reset_password_sent_at = EXCLUDED.reset_password_sent_at,
+          intake_drafts = EXCLUDED.intake_drafts,
+          updated_at = EXCLUDED.updated_at
+      `,
+      [
+        user.id,
+        user.firstName,
+        user.lastName,
+        user.email,
+        user.phone,
+        user.address1,
+        user.address2,
+        user.city,
+        user.state,
+        user.zip,
+        user.country,
+        user.bestTime,
+        user.passwordHash,
+        user.resetPasswordHash,
+        user.resetPasswordExpiresAt,
+        user.resetPasswordSentAt,
+        JSON.stringify(user.intakeDrafts ?? {}),
+        user.createdAt,
+        user.updatedAt,
+      ],
+    );
+  });
+}
+
+async function ensureAuthDatabase() {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
+  if (!authSchemaPromise) {
+    authSchemaPromise = withDatabase(async (client) => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS patentzoom_users (
+          id TEXT PRIMARY KEY,
+          first_name TEXT NOT NULL DEFAULT '',
+          last_name TEXT NOT NULL DEFAULT '',
+          email TEXT NOT NULL UNIQUE,
+          phone TEXT NOT NULL DEFAULT '',
+          address1 TEXT NOT NULL DEFAULT '',
+          address2 TEXT NOT NULL DEFAULT '',
+          city TEXT NOT NULL DEFAULT '',
+          state TEXT NOT NULL DEFAULT '',
+          zip TEXT NOT NULL DEFAULT '',
+          country TEXT NOT NULL DEFAULT '',
+          best_time TEXT NOT NULL DEFAULT '',
+          password_hash TEXT,
+          reset_password_hash TEXT,
+          reset_password_expires_at TIMESTAMPTZ,
+          reset_password_sent_at TIMESTAMPTZ,
+          intake_drafts JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        )
+      `);
+
+      const existingCountResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM patentzoom_users`,
+      );
+      const existingCount = Number(existingCountResult.rows[0]?.count ?? "0");
+
+      if (existingCount > 0) {
+        return;
+      }
+
+      try {
+        const legacyStore = await readAuthFileStore();
+
+        for (const legacyUser of legacyStore.users.map(hydrateUser)) {
+          await client.query(
+            `
+              INSERT INTO patentzoom_users (
+                id,
+                first_name,
+                last_name,
+                email,
+                phone,
+                address1,
+                address2,
+                city,
+                state,
+                zip,
+                country,
+                best_time,
+                password_hash,
+                reset_password_hash,
+                reset_password_expires_at,
+                reset_password_sent_at,
+                intake_drafts,
+                created_at,
+                updated_at
+              )
+              VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19
+              )
+              ON CONFLICT (id) DO NOTHING
+            `,
+            [
+              legacyUser.id,
+              legacyUser.firstName,
+              legacyUser.lastName,
+              legacyUser.email,
+              legacyUser.phone,
+              legacyUser.address1,
+              legacyUser.address2,
+              legacyUser.city,
+              legacyUser.state,
+              legacyUser.zip,
+              legacyUser.country,
+              legacyUser.bestTime,
+              legacyUser.passwordHash,
+              legacyUser.resetPasswordHash,
+              legacyUser.resetPasswordExpiresAt,
+              legacyUser.resetPasswordSentAt,
+              JSON.stringify(legacyUser.intakeDrafts ?? {}),
+              legacyUser.createdAt,
+              legacyUser.updatedAt,
+            ],
+          );
+        }
+      } catch {
+        // Skip legacy import if no JSON snapshot exists yet.
+      }
+    });
+  }
+
+  await authSchemaPromise;
+}
+
+async function readAuthStore() {
+  if (!isDatabaseConfigured()) {
+    return readAuthFileStore();
+  }
+
+  await ensureAuthDatabase();
+
+  const users = await withDatabase(async (client) => {
+    const result = await client.query<UserRow>(
+      `
+        SELECT
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          address1,
+          address2,
+          city,
+          state,
+          zip,
+          country,
+          best_time,
+          password_hash,
+          reset_password_hash,
+          reset_password_expires_at,
+          reset_password_sent_at,
+          intake_drafts,
+          created_at,
+          updated_at
+        FROM patentzoom_users
+      `,
+    );
+
+    return result.rows.map(mapUserRow);
+  });
+
+  return { users };
 }
 
 export async function listStoredUsers() {
@@ -147,7 +425,16 @@ export async function listStoredUsers() {
 }
 
 async function writeAuthStore(store: AuthStore) {
-  await writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+  if (!isDatabaseConfigured()) {
+    await writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+    return;
+  }
+
+  await ensureAuthDatabase();
+
+  for (const user of store.users.map(hydrateUser)) {
+    await upsertUserRow(user);
+  }
 }
 
 function hydrateUser(user: StoredUser): StoredUser {
