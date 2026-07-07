@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import {
-  adminLoginAction,
+  adminPasswordResetAction,
   type AdminActionState,
 } from "@/app/actions/admin";
 
@@ -26,11 +26,16 @@ function FieldError({
   return <p className="mt-2 text-sm text-red-600">{message}</p>;
 }
 
-export function AdminLoginForm() {
-  const [state, action, pending] = useActionState(adminLoginAction, initialState);
+export function AdminResetPasswordForm({ token }: { token: string }) {
+  const [state, action, pending] = useActionState(
+    adminPasswordResetAction,
+    initialState,
+  );
 
   return (
     <form action={action} className="space-y-6">
+      <input type="hidden" name="token" value={token} />
+
       {state.message ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {state.message}
@@ -39,38 +44,38 @@ export function AdminLoginForm() {
 
       <div>
         <label
-          htmlFor="admin-email"
+          htmlFor="new-password"
           className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500"
         >
-          Admin Email
+          New Admin Password
         </label>
         <input
-          id="admin-email"
-          name="email"
-          type="email"
-          autoComplete="email"
+          id="new-password"
+          name="newPassword"
+          type="password"
+          autoComplete="new-password"
           required
           className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.12)]"
         />
-        <FieldError errors={state.errors} name="email" />
+        <FieldError errors={state.errors} name="newPassword" />
       </div>
 
       <div>
         <label
-          htmlFor="admin-password"
+          htmlFor="confirm-password"
           className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500"
         >
-          Password
+          Retype New Password
         </label>
         <input
-          id="admin-password"
-          name="password"
+          id="confirm-password"
+          name="confirmPassword"
           type="password"
-          autoComplete="current-password"
+          autoComplete="new-password"
           required
           className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.12)]"
         />
-        <FieldError errors={state.errors} name="password" />
+        <FieldError errors={state.errors} name="confirmPassword" />
       </div>
 
       <button
@@ -78,14 +83,14 @@ export function AdminLoginForm() {
         disabled={pending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-[#fb4522] px-5 py-3 text-sm font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#e63c18] disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {pending ? "Signing In..." : "Sign In To Admin"}
+        {pending ? "Updating Password..." : "Set Admin Password"}
       </button>
 
       <Link
         href="/admin/forgot-password"
         className="block text-center text-sm font-semibold text-[#1f4faa] underline underline-offset-4"
       >
-        Forgot admin password?
+        Request a new reset link
       </Link>
     </form>
   );

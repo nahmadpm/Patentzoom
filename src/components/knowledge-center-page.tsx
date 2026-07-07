@@ -1,7 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
-const featuredArticles = [
+import type { ArticleRecord } from "@/lib/admin-content";
+
+export const fallbackFeaturedArticles = [
   {
     category: "Patent Search",
     title: "When a patent search should come before the first filing",
@@ -96,7 +98,9 @@ const serviceReads = [
   },
 ] as const;
 
-export function KnowledgeCenterPage() {
+export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] }) {
+  const featuredArticles = articles.slice(0, 3);
+
   return (
     <main className="bg-white text-slate-900">
       <section className="border-b border-slate-200 bg-[#f8f9fb] py-16">
@@ -188,23 +192,23 @@ export function KnowledgeCenterPage() {
                   </p>
                   <span className="text-sm text-slate-500">{article.meta}</span>
                 </div>
-                <div className="mt-5 flex h-36 items-center justify-center rounded-[22px] bg-[#edf2fb]">
+                <Link href={`/knowledge-center/${article.slug}`} className="mt-5 flex h-36 items-center justify-center rounded-[22px] bg-[#edf2fb]">
                   <Image
-                    src={article.image}
+                    src={article.imageUrl}
                     alt={article.title}
                     width={180}
                     height={120}
                     className="h-auto max-h-28 w-auto object-contain"
                   />
-                </div>
+                </Link>
                 <h2 className="mt-6 text-[2rem] font-light leading-9 tracking-[-0.04em] text-[#25306b]">
                   {article.title}
                 </h2>
                 <p className="mt-4 text-sm leading-8 text-slate-600">
-                  {article.description}
+                  {article.excerpt}
                 </p>
                 <Link
-                  href={article.href}
+                  href={`/knowledge-center/${article.slug}`}
                   className="mt-6 inline-flex text-sm font-semibold uppercase tracking-[0.08em] text-[#25306b]"
                 >
                   Continue reading

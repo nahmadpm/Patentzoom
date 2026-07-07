@@ -11,6 +11,7 @@ import { IntakeStepTwoForm } from "@/components/intake-step-two-form";
 import { IntakeStepThreeForm } from "@/components/intake-step-three-form";
 import { IntakeStepSevenForm } from "@/components/intake-step-seven-form";
 import { IntakeStepSixForm } from "@/components/intake-step-six-form";
+import { getEditableServicePage } from "@/lib/admin-content";
 import { getCurrentUserContext, getIntakeDraft } from "@/lib/auth";
 import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
 import { contactDetails, referenceServicePages } from "@/lib/site-data";
@@ -134,9 +135,9 @@ export default async function IntakePage({
       : maxAvailableStep;
   const pageData =
     normalizedService in referenceServicePages
-      ? referenceServicePages[
+      ? await getEditableServicePage(
           normalizedService as keyof typeof referenceServicePages
-        ]
+        )
       : null;
   const packageCards = pageData
     ? pageData.offers.cards.map((card) => ({
@@ -207,7 +208,7 @@ export default async function IntakePage({
   const selectedPackageCard = packageCards.find(
     (item) => item.key === (draft?.packageKey ?? selectedPackageKey),
   );
-  const checkoutSummary = buildIntakeOrderSummary({
+  const checkoutSummary = await buildIntakeOrderSummary({
     serviceIntent: normalizedService,
     packageKey: draft?.packageKey ?? selectedPackageKey,
     packageLabel:

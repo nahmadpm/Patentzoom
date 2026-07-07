@@ -1,5 +1,9 @@
 import { KnowledgeCenterPage } from "@/components/knowledge-center-page";
+import { listPublishedArticles } from "@/lib/admin-content";
 
-export default function Page() {
-  return <KnowledgeCenterPage />;
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  const articles = await listPublishedArticles();
+  return <KnowledgeCenterPage articles={articles} />;
 }

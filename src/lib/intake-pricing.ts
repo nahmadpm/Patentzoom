@@ -1,3 +1,4 @@
+import { getPricingForService } from "@/lib/admin-content";
 import { referenceServicePages } from "@/lib/site-data";
 import {
   getServiceIntentLabel,
@@ -87,7 +88,7 @@ function getSearchOptionLabel(searchOption: SearchOption) {
   return "No Patent Search Report";
 }
 
-function resolvePackage(
+async function resolvePackage(
   serviceIntent: ServiceIntent,
   packageKey: string | null,
   packageLabel: string | null,
@@ -106,6 +107,7 @@ function resolvePackage(
   }
 
   const page =
+    (await getPricingForService(serviceIntent)) ??
     referenceServicePages[serviceIntent as keyof typeof referenceServicePages];
   const cards = page.offers.cards.map((card) => ({
     key: toPackageKey(card.name),
@@ -141,14 +143,14 @@ function resolvePackage(
   return null;
 }
 
-export function buildIntakeOrderSummary(input: {
+export async function buildIntakeOrderSummary(input: {
   serviceIntent: ServiceIntent;
   packageKey: string | null;
   packageLabel: string | null;
   searchOption: SearchOption;
   currency?: "usd" | Lowercase<string>;
-}): IntakeOrderSummaryResult {
-  const resolvedPackage = resolvePackage(
+}): Promise<IntakeOrderSummaryResult> {
+  const resolvedPackage = await resolvePackage(
     input.serviceIntent,
     input.packageKey,
     input.packageLabel,

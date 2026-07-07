@@ -572,7 +572,7 @@ export async function saveStepTenAction(
     String(formData.get("packageKey") ?? "").trim() || null;
   const packageLabel =
     String(formData.get("packageLabel") ?? "").trim() || null;
-  const orderSummary = buildIntakeOrderSummary({
+  const orderSummary = await buildIntakeOrderSummary({
     serviceIntent,
     packageKey,
     packageLabel,

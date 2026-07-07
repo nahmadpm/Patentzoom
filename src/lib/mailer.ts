@@ -51,6 +51,24 @@ function buildResetEmail({
   `;
 }
 
+function buildAdminResetEmail({ resetUrl }: { resetUrl: string }) {
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+      <h2 style="margin: 0 0 16px; color: #25306b;">PatentZoom Admin Password Reset</h2>
+      <p>We received a request to reset the PatentZoom admin password.</p>
+      <p>
+        <a href="${resetUrl}" style="display:inline-block; border-radius:12px; background:#fb4522; color:#ffffff; padding:12px 18px; text-decoration:none; font-weight:700;">
+          Reset admin password
+        </a>
+      </p>
+      <p>If the button does not work, copy and paste this link into your browser:</p>
+      <p style="word-break: break-all;">${resetUrl}</p>
+      <p>This link expires in 30 minutes and can only be used once.</p>
+      <p style="margin-top: 24px;">PatentZoom</p>
+    </div>
+  `;
+}
+
 export async function sendTemporaryPasswordEmail(payload: {
   email: string;
   temporaryPassword: string;
@@ -58,6 +76,57 @@ export async function sendTemporaryPasswordEmail(payload: {
 }) {
   const subject = "Your PatentZoom temporary password";
   const html = buildResetEmail(payload);
+  const from =
+    process.env.PATENTZOOM_SMTP_FROM ??
+    process.env.SMTP_FROM ??
+    "PatentZoom <no-reply@patentzoom.us>";
+
+  if (
+    process.env.SMTP_HOST &&
+    process.env.SMTP_PORT &&
+    process.env.SMTP_USER &&
+    process.env.SMTP_PASS
+  ) {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: Number(process.env.SMTP_PORT) === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from,
+      to: payload.email,
+      subject,
+      html,
+    });
+
+    return {
+      delivery: "smtp" as const,
+    };
+  }
+
+  await writeOutboxMessage({
+    to: payload.email,
+    subject,
+    html,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    delivery: "outbox" as const,
+  };
+}
+
+export async function sendAdminPasswordResetEmail(payload: {
+  email: string;
+  resetUrl: string;
+}) {
+  const subject = "Reset your PatentZoom admin password";
+  const html = buildAdminResetEmail(payload);
   const from =
     process.env.PATENTZOOM_SMTP_FROM ??
     process.env.SMTP_FROM ??

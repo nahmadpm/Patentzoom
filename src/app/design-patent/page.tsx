@@ -1,10 +1,14 @@
 import { ReferenceServicePage } from "@/components/reference-service-page";
-import { referenceServicePages } from "@/lib/site-data";
+import { getEditableServicePage } from "@/lib/admin-content";
 
-export default function DesignPatentPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DesignPatentPage() {
+  const page = await getEditableServicePage("design-patent");
+
   return (
     <ReferenceServicePage
-      page={referenceServicePages["design-patent"]}
+      page={page}
       serviceIntent="design-patent"
     />
   );

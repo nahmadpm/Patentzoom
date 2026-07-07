@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 import { adminLogoutAction } from "@/app/actions/admin";
 import { requireAdminSession } from "@/lib/admin";
+import { listArticles, listPricingRecords } from "@/lib/admin-content";
 import { listStoredUsers, type IntakeDraft } from "@/lib/auth";
 import { readConsultationSubmissions } from "@/lib/consultations";
 import type { ServiceIntent } from "@/lib/service-intents";
@@ -19,11 +22,50 @@ type IntakeRow = {
   draft: IntakeDraft;
 };
 
+function AdminPanel({
+  title,
+  eyebrow,
+  children,
+  aside,
+}: {
+  title: string;
+  eyebrow?: string;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[18px] border border-[#d8e1ee] bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          {eyebrow ? (
+            <p className="text-[10px] font-bold uppercase text-[#5b77bb]">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h2 className="mt-1 text-[15px] font-bold text-[#06183d]">{title}</h2>
+        </div>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] px-4 py-8 text-center text-[13px] text-[#64748b]">
+      {children}
+    </div>
+  );
+}
+
 export default async function AdminDashboardPage() {
   const adminSession = await requireAdminSession();
-  const [users, consultations] = await Promise.all([
+  const [users, consultations, articles, pricingRecords] = await Promise.all([
     listStoredUsers(),
     readConsultationSubmissions(),
+    listArticles(),
+    listPricingRecords(),
   ]);
 
   const intakeRows: IntakeRow[] = users.flatMap((user) =>
@@ -58,335 +100,493 @@ export default async function AdminDashboardPage() {
       user.country &&
       user.passwordHash,
   );
+  const unpaidIntakes = intakeRows.filter(
+    (row) => row.draft.paymentInformation?.stripeCheckoutStatus !== "paid",
+  );
+  const uploadCount = intakeRows.reduce(
+    (count, row) => count + (row.draft.inventionDetails?.uploads?.length ?? 0),
+    0,
+  );
+
+  const metrics = [
+    { label: "Registered users", value: users.length },
+    { label: "Completed profiles", value: completedProfiles.length },
+    { label: "Active intakes", value: activeIntakes.length },
+    { label: "Paid intakes", value: paidIntakes.length },
+    { label: "Open payments", value: unpaidIntakes.length },
+    { label: "Consultation leads", value: consultations.length },
+    { label: "Uploaded files", value: uploadCount },
+    { label: "Services started", value: intakeRows.length },
+  ];
+
+  const navSections = [
+    { label: "Overview", value: 1, href: "#overview", active: true },
+    { label: "Leads", value: consultations.length, href: "#leads" },
+    { label: "Accounts", value: users.length, href: "#accounts" },
+    { label: "Intake activity", value: intakeRows.length, href: "#intakes" },
+    { label: "Payments", value: paidIntakes.length, href: "#payments" },
+    { label: "Uploaded files", value: uploadCount, href: "#files" },
+    { label: "Pricing", value: pricingRecords.length, href: "/admin/pricing" },
+    { label: "Posts", value: articles.length, href: "/admin/posts" },
+    { label: "Settings", value: 2, href: "#settings" },
+  ];
+
+  const recentUsers = users
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 10);
+  const recentIntakes = intakeRows
+    .sort(
+      (a, b) =>
+        new Date(b.draft.updatedAt).getTime() -
+        new Date(a.draft.updatedAt).getTime(),
+    )
+    .slice(0, 10);
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <section className="border-b border-slate-200 bg-white px-6 py-6 shadow-sm">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
-              PatentZoom Admin
-            </p>
-            <h1 className="mt-4 text-[2.8rem] font-light leading-none tracking-[-0.06em] text-[#1f2d4d]">
-              Operations Dashboard
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-8 text-slate-600">
-              Review registered users, consultation leads, intake completion,
-              Stripe payment status, and uploaded invention files from one
-              place.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-              Signed in as <span className="font-semibold text-slate-900">{adminSession.email}</span>
-            </div>
-            <form action={adminLogoutAction}>
-              <button
-                type="submit"
-                className="inline-flex rounded-full bg-[#fb4522] px-5 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#e63c18]"
-              >
-                Sign Out
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <div className="mx-auto grid w-full max-w-7xl gap-8 px-6 py-8">
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "Registered users", value: users.length, note: "Accounts created through website forms" },
-            { label: "Completed profiles", value: completedProfiles.length, note: "Users with contact profile and password saved" },
-            { label: "Active intakes", value: activeIntakes.length, note: "Drafts still moving through intake steps" },
-            { label: "Paid intakes", value: paidIntakes.length, note: "Stripe checkout marked as paid" },
-            { label: "Consultation leads", value: consultations.length, note: "Contact and consultation submissions saved" },
-          ].map((item) => (
-            <article
-              key={item.label}
-              className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                {item.label}
-              </p>
-              <p className="mt-4 text-[2.25rem] font-light leading-none tracking-[-0.05em] text-[#1f2d4d]">
-                {item.value}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{item.note}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-          <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-end justify-between gap-4 border-b border-slate-200 pb-5">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
-                  Intake activity
-                </p>
-                <h2 className="mt-3 text-[2rem] font-light leading-none tracking-[-0.05em] text-[#1f2d4d]">
-                  Service progress and payment state
-                </h2>
+    <main className="min-h-screen scroll-smooth bg-[#f4f0eb] text-[#241c17]">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-[178px] shrink-0 border-r border-[#e7d9cb] bg-[#fffdf9] p-3 lg:block">
+          <div className="rounded-[14px] bg-[#241c17] p-4 text-white shadow-[0_14px_34px_rgba(36,28,23,0.16)]">
+            <p className="text-[10px] font-bold uppercase">Admin</p>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="grid size-8 place-items-center rounded-[10px] bg-[#fb4522] text-xs font-bold">
+                PZ
               </div>
-              <p className="text-sm text-slate-500">{intakeRows.length} drafts</p>
+              <div>
+                <p className="text-[13px] font-bold leading-tight">
+                  PatentZoom
+                </p>
+                <p className="text-[11px] text-white/82">Management</p>
+              </div>
             </div>
+            <p className="mt-4 text-[11px] leading-5 text-white/84">
+              Leads, accounts, intake progress, payment signals, and service
+              operations.
+            </p>
+          </div>
 
-            <div className="mt-6 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-[0.14em] text-slate-400">
-                  <tr>
-                    <th className="pb-3 pr-4 font-semibold">User</th>
-                    <th className="pb-3 pr-4 font-semibold">Service</th>
-                    <th className="pb-3 pr-4 font-semibold">Step</th>
-                    <th className="pb-3 pr-4 font-semibold">Package</th>
-                    <th className="pb-3 pr-4 font-semibold">Payment</th>
-                    <th className="pb-3 font-semibold">Uploads</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {intakeRows.length ? (
-                    intakeRows
-                      .sort(
-                        (a, b) =>
-                          new Date(b.draft.updatedAt).getTime() -
-                          new Date(a.draft.updatedAt).getTime(),
-                      )
-                      .map((row) => (
-                        <tr key={`${row.userId}-${row.serviceIntent}`}>
-                          <td className="py-4 pr-4 align-top">
-                            <p className="font-semibold text-slate-900">{row.userName}</p>
-                            <p className="mt-1 text-xs text-slate-500">{row.email}</p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              Updated {formatDateTime(row.draft.updatedAt)}
-                            </p>
-                          </td>
-                          <td className="py-4 pr-4 align-top capitalize text-slate-700">
-                            {row.serviceIntent.replace(/-/g, " ")}
-                          </td>
-                          <td className="py-4 pr-4 align-top">
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-700">
-                              Step {row.draft.currentStep}
-                            </span>
-                          </td>
-                          <td className="py-4 pr-4 align-top text-slate-700">
-                            {row.draft.packageLabel ?? "Not selected"}
-                          </td>
-                          <td className="py-4 pr-4 align-top">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] ${
-                                row.draft.paymentInformation?.stripeCheckoutStatus === "paid"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : row.draft.paymentInformation?.stripeCheckoutStatus === "pending"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {row.draft.paymentInformation?.stripeCheckoutStatus ?? "Not started"}
-                            </span>
-                          </td>
-                          <td className="py-4 align-top text-slate-700">
-                            {row.draft.inventionDetails?.uploads?.length ?? 0}
-                          </td>
-                        </tr>
-                      ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-sm text-slate-500">
-                        No intake drafts have been saved yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </article>
+          <div className="mt-3 rounded-[12px] border border-[#e7d9cb] bg-white px-3 py-2 text-[11px] text-[#6f6258]">
+            Search admin sections
+          </div>
 
-          <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="border-b border-slate-200 pb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
-                Recent leads
-              </p>
-              <h2 className="mt-3 text-[2rem] font-light leading-none tracking-[-0.05em] text-[#1f2d4d]">
-                Consultation submissions
-              </h2>
-            </div>
+          <nav className="mt-3 space-y-2">
+            {navSections.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`flex h-8 items-center justify-between rounded-[10px] px-3 text-[11px] font-bold ${
+                  item.active
+                    ? "bg-[#fb4522] text-white"
+                    : "border border-[#e7d9cb] bg-white text-[#6f6258] hover:border-[#fb4522]/40 hover:text-[#fb4522]"
+                }`}
+              >
+                <span>{item.label}</span>
+                <span
+                  className={`rounded-full px-1.5 text-[10px] ${
+                    item.active ? "bg-white/20" : "bg-[#f4f0eb]"
+                  }`}
+                >
+                  {item.value}
+                </span>
+              </a>
+            ))}
+          </nav>
+        </aside>
 
-            <div className="mt-6 space-y-4">
-              {consultations.length ? (
-                consultations.slice(0, 12).map((lead) => (
-                  <article
-                    key={lead.id}
-                    className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">{lead.name}</p>
-                        <p className="mt-1 text-sm text-slate-600">{lead.email}</p>
-                      </div>
-                      <span className="text-xs uppercase tracking-[0.12em] text-slate-400">
-                        {formatDateTime(lead.createdAt)}
-                      </span>
-                    </div>
-                    {lead.phone ? (
-                      <p className="mt-3 text-sm text-slate-600">Phone: {lead.phone}</p>
-                    ) : null}
-                    {lead.company ? (
-                      <p className="mt-1 text-sm text-slate-600">Company: {lead.company}</p>
-                    ) : null}
-                    {lead.message ? (
-                      <p className="mt-3 text-sm leading-7 text-slate-600">{lead.message}</p>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
-                  No consultation leads have been stored yet.
+        <div className="min-w-0 flex-1 p-3 sm:p-5">
+          <header className="rounded-[18px] border border-[#e7d9cb] bg-[#fffdf9] px-4 py-4 shadow-[0_1px_2px_rgba(36,28,23,0.04)] sm:px-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-[#fb4522]">
+                  Admin console / Overview
+                </p>
+                <h1 className="mt-2 text-[22px] font-bold text-[#241c17]">
+                  PatentZoom Operations
+                </h1>
+                <p className="mt-2 max-w-3xl text-[12px] leading-6 text-[#6f6258]">
+                  Manage accounts, consultation submissions, intake progress,
+                  payment status, and uploaded invention materials from one
+                  operational control center.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/"
+                  className="rounded-[9px] border border-[#e7d9cb] bg-white px-3 py-2 text-[11px] font-bold text-[#241c17] hover:border-[#fb4522]/40 hover:text-[#fb4522]"
+                >
+                  Return to public site
+                </Link>
+                <div className="flex items-center gap-2 rounded-full border border-[#e7d9cb] bg-white px-2 py-1">
+                  <span className="grid size-7 place-items-center rounded-full bg-[#fb4522] text-[10px] font-bold text-white">
+                    PZ
+                  </span>
+                  <span className="max-w-[170px] truncate text-[11px] text-[#6f6258]">
+                    {adminSession.email}
+                  </span>
                 </div>
-              )}
+                <form action={adminLogoutAction}>
+                  <button
+                    type="submit"
+                    className="rounded-[9px] border border-[#e7d9cb] bg-white px-3 py-2 text-[11px] font-bold text-[#241c17] hover:border-[#fb4522]/40 hover:text-[#fb4522]"
+                  >
+                    Sign out
+                  </button>
+                </form>
+              </div>
             </div>
-          </article>
-        </section>
+          </header>
 
-        <section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-          <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="border-b border-slate-200 pb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
-                Registered users
-              </p>
-              <h2 className="mt-3 text-[2rem] font-light leading-none tracking-[-0.05em] text-[#1f2d4d]">
-                Account roster
-              </h2>
-            </div>
+          <div className="mt-4 space-y-4">
+            <div id="overview" className="scroll-mt-4" />
+            <AdminPanel
+              title="Operations overview"
+              eyebrow="Platform signals"
+              aside={
+                <p className="text-[11px] text-[#64748b]">
+                  {new Date().toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+              }
+            >
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {metrics.map((item) => (
+                  <article
+                    key={item.label}
+                    className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] p-3"
+                  >
+                    <p className="text-[11px] text-[#64748b]">{item.label}</p>
+                    <p className="mt-2 text-[24px] font-bold leading-none text-[#06183d]">
+                      {item.value}
+                    </p>
+                  </article>
+                ))}
+              </div>
 
-            <div className="mt-6 space-y-4">
-              {users.length ? (
-                users
-                  .sort(
-                    (a, b) =>
-                      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                  )
-                  .slice(0, 20)
-                  .map((user) => (
-                    <article
-                      key={user.id}
-                      className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-900">
-                            {`${user.firstName} ${user.lastName}`.trim() || user.email}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">{user.email}</p>
-                        </div>
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] ${
-                            user.passwordHash
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-amber-50 text-amber-700"
-                          }`}
+              <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_1.1fr]">
+                <div className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] p-3">
+                  <p className="text-[11px] font-bold text-[#06183d]">
+                    Service mix
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {Object.entries(
+                      intakeRows.reduce<Record<string, number>>((acc, row) => {
+                        const key = row.serviceIntent.replace(/-/g, " ");
+                        acc[key] = (acc[key] ?? 0) + 1;
+                        return acc;
+                      }, {}),
+                    )
+                      .slice(0, 5)
+                      .map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="flex items-center justify-between text-[12px] capitalize text-[#64748b]"
                         >
-                          {user.passwordHash ? "Profile ready" : "Needs password"}
+                          <span>{label}</span>
+                          <span className="font-bold text-[#06183d]">{value}</span>
+                        </div>
+                      ))}
+                    {!intakeRows.length ? (
+                      <p className="text-[12px] text-[#64748b]">
+                        No service activity yet.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] p-3">
+                  <p className="text-[11px] font-bold text-[#06183d]">
+                    Payment states
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      ["Paid", paidIntakes.length],
+                      ["Pending or open", unpaidIntakes.length],
+                      ["No checkout", intakeRows.length - paidIntakes.length],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between text-[12px] text-[#64748b]"
+                      >
+                        <span>{label}</span>
+                        <span className="font-bold text-[#06183d]">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] p-3">
+                  <p className="text-[11px] font-bold text-[#06183d]">
+                    Publishing
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      ["Editable packages", pricingRecords.length],
+                      [
+                        "Published posts",
+                        articles.filter((article) => article.status === "published").length,
+                      ],
+                      [
+                        "Draft posts",
+                        articles.filter((article) => article.status === "draft").length,
+                      ],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-3 text-[12px] text-[#64748b]"
+                      >
+                        <span className="truncate">{label}</span>
+                        <span className="shrink-0 font-bold text-[#06183d]">
+                          {value}
                         </span>
                       </div>
-                      <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                        <p>Phone: {user.phone || "Not added"}</p>
-                        <p>Created: {formatDateTime(user.createdAt)}</p>
-                        <p className="sm:col-span-2">
-                          Address: {user.address1 ? `${user.address1}, ${user.city}, ${user.state} ${user.zip}` : "Not added"}
-                        </p>
-                      </div>
-                    </article>
-                  ))
-              ) : (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
-                  No users have registered yet.
+                    ))}
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Link
+                        href="/admin/pricing"
+                        className="rounded-[9px] bg-[#fb4522] px-3 py-2 text-[11px] font-bold text-white"
+                      >
+                        Pricing
+                      </Link>
+                      <Link
+                        href="/admin/posts"
+                        className="rounded-[9px] border border-[#e7d9cb] bg-white px-3 py-2 text-[11px] font-bold text-[#241c17] hover:text-[#fb4522]"
+                      >
+                        Posts
+                      </Link>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </article>
+              </div>
+            </AdminPanel>
 
-          <article className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="border-b border-slate-200 pb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
-                Payments and files
-              </p>
-              <h2 className="mt-3 text-[2rem] font-light leading-none tracking-[-0.05em] text-[#1f2d4d]">
-                Paid work and uploaded materials
-              </h2>
-            </div>
+            <div id="intakes" className="scroll-mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+              <AdminPanel
+                title="Service progress and payment state"
+                eyebrow="Intake activity"
+                aside={
+                  <span className="rounded-full bg-[#eef3f8] px-2 py-1 text-[11px] font-bold text-[#64748b]">
+                    {intakeRows.length} drafts
+                  </span>
+                }
+              >
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-[12px]">
+                    <thead className="border-b border-[#d8e1ee] text-[10px] font-bold uppercase text-[#64748b]">
+                      <tr>
+                        <th className="pb-2 pr-3">User</th>
+                        <th className="pb-2 pr-3">Service</th>
+                        <th className="pb-2 pr-3">Step</th>
+                        <th className="pb-2 pr-3">Package</th>
+                        <th className="pb-2 pr-3">Payment</th>
+                        <th className="pb-2">Uploads</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#d8e1ee]">
+                      {recentIntakes.length ? (
+                        recentIntakes.map((row) => (
+                          <tr key={`${row.userId}-${row.serviceIntent}`}>
+                            <td className="py-3 pr-3 align-top">
+                              <p className="font-bold text-[#06183d]">
+                                {row.userName}
+                              </p>
+                              <p className="mt-1 text-[11px] text-[#64748b]">
+                                {row.email}
+                              </p>
+                            </td>
+                            <td className="py-3 pr-3 align-top capitalize text-[#64748b]">
+                              {row.serviceIntent.replace(/-/g, " ")}
+                            </td>
+                            <td className="py-3 pr-3 align-top">
+                              <span className="rounded-full bg-[#eef3f8] px-2 py-1 text-[10px] font-bold text-[#06183d]">
+                                Step {row.draft.currentStep}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-3 align-top text-[#64748b]">
+                              {row.draft.packageLabel ?? "Not selected"}
+                            </td>
+                            <td className="py-3 pr-3 align-top">
+                              <span
+                                className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
+                                  row.draft.paymentInformation?.stripeCheckoutStatus ===
+                                  "paid"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : row.draft.paymentInformation
+                                          ?.stripeCheckoutStatus === "pending"
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-[#eef3f8] text-[#64748b]"
+                                }`}
+                              >
+                                {row.draft.paymentInformation
+                                  ?.stripeCheckoutStatus ?? "Not started"}
+                              </span>
+                            </td>
+                            <td className="py-3 align-top font-bold text-[#06183d]">
+                              {row.draft.inventionDetails?.uploads?.length ?? 0}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="py-6">
+                            <EmptyState>No intake drafts have been saved yet.</EmptyState>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </AdminPanel>
 
-            <div className="mt-6 space-y-4">
-              {intakeRows.length ? (
-                intakeRows
-                  .filter(
-                    (row) =>
-                      row.draft.paymentInformation?.stripeCheckoutStatus === "paid" ||
-                      (row.draft.inventionDetails?.uploads?.length ?? 0) > 0,
-                  )
-                  .sort(
-                    (a, b) =>
-                      new Date(b.draft.updatedAt).getTime() -
-                      new Date(a.draft.updatedAt).getTime(),
-                  )
-                  .slice(0, 20)
-                  .map((row) => (
-                    <article
-                      key={`${row.userId}-${row.serviceIntent}-detail`}
-                      className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-900">{row.userName}</p>
-                          <p className="mt-1 text-sm capitalize text-slate-600">
-                            {row.serviceIntent.replace(/-/g, " ")}
-                          </p>
-                        </div>
-                        {row.draft.paymentInformation?.stripeCheckoutStatus ? (
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">
-                            {row.draft.paymentInformation.stripeCheckoutStatus}
+              <div id="leads" className="scroll-mt-4">
+              <AdminPanel title="Consultation submissions" eyebrow="Recent leads">
+                <div className="space-y-2">
+                  {consultations.length ? (
+                    consultations.slice(0, 8).map((lead) => (
+                      <article
+                        key={lead.id}
+                        className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] px-3 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold text-[#06183d]">
+                              {lead.name}
+                            </p>
+                            <p className="mt-1 truncate text-[12px] text-[#64748b]">
+                              {lead.email}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[10px] uppercase text-[#64748b]">
+                            {formatDateTime(lead.createdAt)}
                           </span>
+                        </div>
+                        {lead.message ? (
+                          <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[#64748b]">
+                            {lead.message}
+                          </p>
                         ) : null}
-                      </div>
-
-                      <div className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                        <p>
-                          Package: {row.draft.packageLabel ?? "Not selected"}
-                        </p>
-                        <p>
-                          Amount: {row.draft.paymentInformation?.stripeAmountTotal != null
-                            ? `$${(row.draft.paymentInformation.stripeAmountTotal / 100).toFixed(2)}`
-                            : "Not paid"}
-                        </p>
-                        <p>
-                          Files uploaded: {row.draft.inventionDetails?.uploads?.length ?? 0}
-                        </p>
-                        <p>
-                          Last updated: {formatDateTime(row.draft.updatedAt)}
-                        </p>
-                      </div>
-
-                      {row.draft.inventionDetails?.uploads?.length ? (
-                        <ul className="mt-4 space-y-2">
-                          {row.draft.inventionDetails.uploads.slice(0, 5).map((file) => (
-                            <li
-                              key={file.id}
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-                            >
-                              {file.originalName}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </article>
-                  ))
-              ) : (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
-                  No payment or upload activity has been saved yet.
+                      </article>
+                    ))
+                  ) : (
+                    <EmptyState>No consultation leads have been stored yet.</EmptyState>
+                  )}
                 </div>
-              )}
+              </AdminPanel>
+              </div>
             </div>
-          </article>
-        </section>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div id="accounts" className="scroll-mt-4">
+              <AdminPanel title="Account roster" eyebrow="Registered users">
+                <div className="space-y-2">
+                  {recentUsers.length ? (
+                    recentUsers.map((user) => (
+                      <article
+                        key={user.id}
+                        className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] px-3 py-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[13px] font-bold text-[#06183d]">
+                              {`${user.firstName} ${user.lastName}`.trim() ||
+                                user.email}
+                            </p>
+                            <p className="mt-1 text-[12px] text-[#64748b]">
+                              {user.email}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
+                              user.passwordHash
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {user.passwordHash ? "Profile ready" : "Needs password"}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid gap-1 text-[12px] text-[#64748b] sm:grid-cols-2">
+                          <p>Phone: {user.phone || "Not added"}</p>
+                          <p>Created: {formatDateTime(user.createdAt)}</p>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <EmptyState>No users have registered yet.</EmptyState>
+                  )}
+                </div>
+              </AdminPanel>
+              </div>
+
+              <div id="payments" className="scroll-mt-4">
+              <AdminPanel title="Paid work and uploaded materials" eyebrow="Files">
+                <div className="space-y-2">
+                  {intakeRows.length ? (
+                    intakeRows
+                      .filter(
+                        (row) =>
+                          row.draft.paymentInformation?.stripeCheckoutStatus ===
+                            "paid" ||
+                          (row.draft.inventionDetails?.uploads?.length ?? 0) > 0,
+                      )
+                      .slice(0, 10)
+                      .map((row) => (
+                        <article
+                          key={`${row.userId}-${row.serviceIntent}-detail`}
+                          className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] px-3 py-3"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[13px] font-bold text-[#06183d]">
+                                {row.userName}
+                              </p>
+                              <p className="mt-1 text-[12px] capitalize text-[#64748b]">
+                                {row.serviceIntent.replace(/-/g, " ")}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-[#eef3f8] px-2 py-1 text-[10px] font-bold uppercase text-[#64748b]">
+                              {row.draft.paymentInformation?.stripeCheckoutStatus ??
+                                "Open"}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid gap-1 text-[12px] text-[#64748b] sm:grid-cols-2">
+                            <p>
+                              Amount:{" "}
+                              {row.draft.paymentInformation?.stripeAmountTotal !=
+                              null
+                                ? `$${(
+                                    row.draft.paymentInformation
+                                      .stripeAmountTotal / 100
+                                  ).toFixed(2)}`
+                                : "Not paid"}
+                            </p>
+                            <p>
+                              Files:{" "}
+                              {row.draft.inventionDetails?.uploads?.length ?? 0}
+                            </p>
+                          </div>
+                        </article>
+                      ))
+                  ) : (
+                    <EmptyState>
+                      No payment or upload activity has been saved yet.
+                    </EmptyState>
+                  )}
+                </div>
+              </AdminPanel>
+              </div>
+            </div>
+
+            <div id="files" className="scroll-mt-4" />
+            <div id="settings" className="scroll-mt-4 rounded-[18px] border border-[#e7d9cb] bg-[#fffdf9] p-4 text-[12px] text-[#6f6258]">
+              Admin recovery is enabled for <span className="font-bold text-[#241c17]">mail@patentzoom.us</span>.
+              SMTP delivery still needs to be configured before reset emails can be sent from production.
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );
