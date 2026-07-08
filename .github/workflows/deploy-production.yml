@@ -1,0 +1,107 @@
+name: Deploy PatentZoom Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: patentzoom-production
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy to EC2
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
+      SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
+      DEPLOY_ARCHIVE: patentzoom-${{ github.sha }}.tar.gz
+      RELEASE_DIR: /tmp/patentzoom-release-${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create deployment archive
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.next' \
+            --exclude='node_modules' \
+            --exclude='.codex-temp' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            -czf "$DEPLOY_ARCHIVE" .
+
+      - name: Upload release archive
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          source: ${{ env.DEPLOY_ARCHIVE }}
+          target: /tmp
+
+      - name: Install, build, and restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          envs: APP_DIR,SERVICE_NAME,DEPLOY_ARCHIVE,RELEASE_DIR
+          script: |
+            set -euo pipefail
+
+            if [ ! -f "$APP_DIR/.env.production" ]; then
+              echo "Missing $APP_DIR/.env.production on the server."
+              exit 1
+            fi
+
+            rm -rf "$RELEASE_DIR"
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf "/tmp/$DEPLOY_ARCHIVE" -C "$RELEASE_DIR"
+            cp "$APP_DIR/.env.production" "$RELEASE_DIR/.env.production"
+
+            cd "$RELEASE_DIR"
+            npm ci
+            npm run build
+
+            rsync -a --delete \
+              --exclude='.env.production' \
+              --exclude='.codex-temp/' \
+              "$RELEASE_DIR"/ "$APP_DIR"/
+            cp "$RELEASE_DIR/.env.production" "$APP_DIR/.env.production"
+
+            sudo systemctl restart "$SERVICE_NAME"
+            sudo systemctl is-active --quiet "$SERVICE_NAME"
+            curl -fsS http://localhost:8020 >/dev/null
+
+            rm -rf "$RELEASE_DIR" "/tmp/$DEPLOY_ARCHIVE"
