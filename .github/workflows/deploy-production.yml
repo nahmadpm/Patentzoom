@@ -42,6 +42,7 @@ jobs:
       APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
       SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
       DEPLOY_ARCHIVE: patentzoom-${{ github.sha }}.tar.gz
+      DEPLOY_ARCHIVE_PATH: ${{ runner.temp }}/patentzoom-${{ github.sha }}.tar.gz
       RELEASE_DIR: /tmp/patentzoom-release-${{ github.sha }}
     steps:
       - name: Checkout
@@ -57,7 +58,8 @@ jobs:
             --exclude='.codex-temp' \
             --exclude='.env' \
             --exclude='.env.*' \
-            -czf "$DEPLOY_ARCHIVE" .
+            -czf "$DEPLOY_ARCHIVE_PATH" .
+          cp "$DEPLOY_ARCHIVE_PATH" "$DEPLOY_ARCHIVE"
 
       - name: Upload release archive
         uses: appleboy/scp-action@v0.1.7
