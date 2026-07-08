@@ -42,7 +42,6 @@ jobs:
       APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
       SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
       DEPLOY_ARCHIVE: patentzoom-${{ github.sha }}.tar.gz
-      DEPLOY_ARCHIVE_PATH: ${{ runner.temp }}/patentzoom-${{ github.sha }}.tar.gz
       RELEASE_DIR: /tmp/patentzoom-release-${{ github.sha }}
     steps:
       - name: Checkout
@@ -50,16 +49,17 @@ jobs:
 
       - name: Create deployment archive
         run: |
+          mkdir -p .deploy-artifact
           tar \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='.next' \
             --exclude='node_modules' \
             --exclude='.codex-temp' \
+            --exclude='.deploy-artifact' \
             --exclude='.env' \
             --exclude='.env.*' \
-            -czf "$DEPLOY_ARCHIVE_PATH" .
-          cp "$DEPLOY_ARCHIVE_PATH" "$DEPLOY_ARCHIVE"
+            -czf ".deploy-artifact/$DEPLOY_ARCHIVE" .
 
       - name: Upload release archive
         uses: appleboy/scp-action@v0.1.7
@@ -68,8 +68,9 @@ jobs:
           username: ${{ secrets.AWS_USER || 'ubuntu' }}
           key: ${{ secrets.AWS_SSH_KEY }}
           port: ${{ secrets.AWS_SSH_PORT || 22 }}
-          source: ${{ env.DEPLOY_ARCHIVE }}
+          source: .deploy-artifact/${{ env.DEPLOY_ARCHIVE }}
           target: /tmp
+          strip_components: 1
 
       - name: Install, build, and restart service
         uses: appleboy/ssh-action@v1.0.3
