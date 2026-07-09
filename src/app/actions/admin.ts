@@ -98,6 +98,14 @@ export async function adminPasswordResetRequestAction(
   const result = await requestAdminPasswordReset({
     email: validated.data.email,
     sendEmail: sendAdminPasswordResetEmail,
+  }).catch((error) => {
+    console.error("Admin password reset email failed", error);
+
+    return {
+      ok: false as const,
+      message:
+        "The reset link could not be emailed. Please check the SMTP username and app password, then try again.",
+    };
   });
 
   if (!result.ok) {
