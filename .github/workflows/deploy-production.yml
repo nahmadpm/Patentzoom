@@ -104,6 +104,17 @@ jobs:
 
             sudo systemctl restart "$SERVICE_NAME"
             sudo systemctl is-active --quiet "$SERVICE_NAME"
-            curl -fsS http://localhost:8020 >/dev/null
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://localhost:8020 >/dev/null; then
+                break
+              fi
+
+              if [ "$attempt" -eq 30 ]; then
+                sudo systemctl status "$SERVICE_NAME" --no-pager
+                exit 1
+              fi
+
+              sleep 2
+            done
 
             rm -rf "$RELEASE_DIR" "/tmp/$DEPLOY_ARCHIVE"
