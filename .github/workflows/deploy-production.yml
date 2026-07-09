@@ -37,7 +37,6 @@ jobs:
     name: Deploy to EC2
     needs: validate
     runs-on: ubuntu-latest
-    environment: production
     env:
       APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
       SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
