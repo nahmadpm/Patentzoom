@@ -86,6 +86,8 @@ export function HomeHeroCard({
   }>({
     authenticated: false,
   });
+  const [currentReturnTo, setCurrentReturnTo] = useState("/");
+  const [socialAuthMessage, setSocialAuthMessage] = useState("");
   const [registerState, registerFormAction, registerPending] = useActionState(
     registerStarterAction,
     initialState,
@@ -126,6 +128,18 @@ export function HomeHeroCard({
 
   useEffect(() => {
     void loadSession();
+    const params = new URLSearchParams(window.location.search);
+    const authMessage = params.get("authMessage");
+
+    params.delete("authMessage");
+    const nextSearch = params.toString();
+    setCurrentReturnTo(
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+    );
+
+    if (authMessage) {
+      setSocialAuthMessage(authMessage);
+    }
 
     const handlePageShow = () => {
       void loadSession();
@@ -139,6 +153,26 @@ export function HomeHeroCard({
       window.removeEventListener("focus", handlePageShow);
     };
   }, [loadSession]);
+
+  const buildSocialAuthHref = (provider: "facebook" | "google") => {
+    const params = new URLSearchParams({
+      returnTo: currentReturnTo,
+    });
+
+    if (serviceIntent) {
+      params.set("serviceIntent", serviceIntent);
+    }
+
+    if (packageKey) {
+      params.set("packageKey", packageKey);
+    }
+
+    if (packageLabel) {
+      params.set("packageLabel", packageLabel);
+    }
+
+    return `/api/auth/oauth/${provider}/start?${params.toString()}`;
+  };
 
   const signedInTargetHref =
     serviceIntent
@@ -326,19 +360,25 @@ export function HomeHeroCard({
           </form>
         )}
 
+        {socialAuthMessage ? (
+          <p className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+            {socialAuthMessage}
+          </p>
+        ) : null}
+
         <div className="grid gap-2 sm:grid-cols-2">
-          <button
-            type="button"
+          <Link
+            href={buildSocialAuthHref("facebook")}
             className="flex items-center justify-center rounded-[14px] border border-[rgba(231,217,203,0.9)] bg-white px-3 py-2 text-[12.5px] font-medium text-slate-700 transition duration-300 hover:-translate-y-0.5 hover:border-[rgba(251,69,34,0.28)] hover:text-[#fb4522] hover:shadow-[0_16px_30px_rgba(36,28,23,0.08)]"
           >
             Continue with Facebook
-          </button>
-          <button
-            type="button"
+          </Link>
+          <Link
+            href={buildSocialAuthHref("google")}
             className="flex items-center justify-center rounded-[14px] border border-[rgba(231,217,203,0.9)] bg-white px-3 py-2 text-[12.5px] font-medium text-slate-700 transition duration-300 hover:-translate-y-0.5 hover:border-[rgba(251,69,34,0.28)] hover:text-[#fb4522] hover:shadow-[0_16px_30px_rgba(36,28,23,0.08)]"
           >
             Continue with Google
-          </button>
+          </Link>
         </div>
 
         {helperLabel ? (

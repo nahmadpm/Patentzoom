@@ -43,6 +43,8 @@ export default function ForgotPasswordPage() {
     initialResetState,
   );
   const [emailForReset, setEmailForReset] = useState("");
+  const [currentReturnTo, setCurrentReturnTo] = useState("/forgot-password");
+  const [socialAuthMessage, setSocialAuthMessage] = useState("");
 
   useEffect(() => {
     if (requestState.mode === "reset" && requestState.email) {
@@ -50,7 +52,29 @@ export default function ForgotPasswordPage() {
     }
   }, [requestState.email, requestState.mode]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authMessage = params.get("authMessage");
+
+    params.delete("authMessage");
+    const nextSearch = params.toString();
+    setCurrentReturnTo(
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+    );
+
+    if (authMessage) {
+      setSocialAuthMessage(authMessage);
+    }
+  }, []);
+
   const showResetStep = Boolean(emailForReset);
+  const buildSocialAuthHref = (provider: "facebook" | "google") => {
+    const params = new URLSearchParams({
+      returnTo: currentReturnTo,
+    });
+
+    return `/api/auth/oauth/${provider}/start?${params.toString()}`;
+  };
 
   return (
     <main
@@ -241,19 +265,25 @@ export default function ForgotPasswordPage() {
                 </div>
               )}
 
+              {socialAuthMessage ? (
+                <p className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-800">
+                  {socialAuthMessage}
+                </p>
+              ) : null}
+
               <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
+                <Link
+                  href={buildSocialAuthHref("facebook")}
                   className="flex items-center justify-center rounded-[14px] bg-[#1976d2] px-3 py-2.5 text-[12.5px] font-medium text-white transition duration-300 hover:-translate-y-0.5"
                 >
                   Continue with Facebook
-                </button>
-                <button
-                  type="button"
+                </Link>
+                <Link
+                  href={buildSocialAuthHref("google")}
                   className="flex items-center justify-center rounded-[14px] border border-slate-300 bg-white px-3 py-2.5 text-[12.5px] font-medium text-slate-700 transition duration-300 hover:-translate-y-0.5"
                 >
                   Continue with Google
-                </button>
+                </Link>
               </div>
             </div>
           </section>

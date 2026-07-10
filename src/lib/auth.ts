@@ -897,6 +897,65 @@ export async function loginUser(input: {
   };
 }
 
+export async function loginOAuthUser(input: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  pendingService: ServiceIntent | null;
+  pendingPackageKey: string | null;
+  pendingPackageLabel: string | null;
+}) {
+  const store = await readAuthStore();
+  const normalizedEmail = normalizeEmail(input.email);
+  const now = new Date().toISOString();
+  let user = store.users.find((entry) => entry.email === normalizedEmail);
+
+  if (user) {
+    user.firstName = user.firstName || input.firstName.trim();
+    user.lastName = user.lastName || input.lastName.trim();
+    user.phone = user.phone || input.phone?.trim() || "";
+    user.updatedAt = now;
+  } else {
+    user = {
+      id: randomUUID(),
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      email: normalizedEmail,
+      phone: input.phone?.trim() || "",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "United States",
+      bestTime: "",
+      passwordHash: null,
+      resetPasswordHash: null,
+      resetPasswordExpiresAt: null,
+      resetPasswordSentAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    store.users.push(user);
+  }
+
+  await writeAuthStore(store);
+
+  const session = buildSessionUser(
+    hydrateUser(user),
+    input.pendingService,
+    input.pendingPackageKey,
+    input.pendingPackageLabel,
+  );
+  await setSession(session);
+
+  return {
+    ok: true as const,
+    redirectTo: getPostAuthHref(session),
+  };
+}
+
 export async function updateCurrentUserProfile(input: {
   firstName: string;
   lastName: string;

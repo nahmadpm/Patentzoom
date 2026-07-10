@@ -1,20 +1,61 @@
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 64 64"
-  fill="none"
->
-  <rect width="64" height="64" rx="14" fill="#FFF7F4" />
-  <path
-    d="M12 14.5C12 13.1193 13.1193 12 14.5 12H29V22.2H23.4V19.1H17.6V44.9H23.4V41.8H29V52H14.5C13.1193 52 12 50.8807 12 49.5V14.5Z"
-    fill="#111111"
-  />
-  <path
-    d="M32.6 12H49.5C50.8807 12 52 13.1193 52 14.5V29.8H41.8V24.2H46.4V17.6H32.6V12Z"
-    fill="#FB4522"
-  />
-  <path d="M29 25.8H39.2V36H29V25.8Z" fill="#FB4522" />
-  <path
-    d="M41.8 38.6H52V49.5C52 50.8807 50.8807 52 49.5 52H32.6V46.4H46.4V38.6H41.8Z"
-    fill="#111111"
-  />
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW 2019 (64-Bit) -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="567px" height="567px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 50.38 50.38"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil1 {fill:none}
+    .fil0 {fill:black;fill-rule:nonzero}
+    .fil2 {fill:#FF4422;fill-rule:nonzero}
+   ]]>
+  </style>
+   <clipPath id="id0">
+    <path d="M0 0l50.38 0 0 50.38 -50.38 0 0 -50.38z"/>
+   </clipPath>
+    <clipPath id="id1">
+     <path d="M4.75 4.75l40.88 0 0 40.88 -40.88 0 0 -40.88z"/>
+    </clipPath>
+    <clipPath id="id2">
+     <path d="M0 0l50.38 0 0 50.38 -50.38 0 0 -50.38z"/>
+    </clipPath>
+    <clipPath id="id3">
+     <path d="M18.43 4.75l27.2 0 0 40.88 -27.2 0 0 -40.88z"/>
+    </clipPath>
+    <clipPath id="id4">
+     <path d="M0 0l50.38 0 0 50.38 -50.38 0 0 -50.38z"/>
+    </clipPath>
+ </defs>
+ <g id="Layer_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g>
+  </g>
+  <g style="clip-path:url(#id0)">
+   <g>
+    <g>
+    </g>
+   </g>
+   <g style="clip-path:url(#id1)">
+    <g>
+     <path class="fil0" d="M31.61 18.65l0 12.98 -12.97 0 0 -12.98 12.97 0zm-26.86 -13.9l0 40.76 8.13 0 0 -32.62 24.47 0 0 24.47 -18.71 0 0 8.14 26.87 0 0 -40.75 -40.76 0zm0 0z"/>
+    </g>
+   </g>
+   <g style="clip-path:url(#id2)">
+    <path class="fil1" d="M4.75 4.75l40.88 0 0 40.88 -40.88 0 0 -40.88zm0 0z"/>
+    <g>
+    </g>
+   </g>
+   <g style="clip-path:url(#id3)">
+    <g>
+     <path class="fil2" d="M31.61 31.61l-12.97 0 12.98 -12.98 0 12.98 -0.01 0zm13.9 -26.86l-8.14 8.14 0 24.47 -18.73 0 0 8.14 26.87 0 0 -40.75zm0 0z"/>
+    </g>
+   </g>
+   <g style="clip-path:url(#id4)">
+    <path class="fil1" d="M18.43 4.75l27.2 0 0 40.88 -27.2 0 0 -40.88zm0 0z"/>
+   </g>
+  </g>
+  <polygon class="fil1" points="0,0 50.38,0 50.38,50.38 0,50.38 "/>
+ </g>
 </svg>
