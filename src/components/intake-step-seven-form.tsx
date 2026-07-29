@@ -108,7 +108,15 @@ export function IntakeStepSevenForm({
       ) : null}
 
       <div className="space-y-6 border-t border-slate-300 pt-6">
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div
+          className={`grid gap-5 ${
+            packages.length === 1
+              ? "mx-auto max-w-[420px]"
+              : packages.length === 2
+                ? "mx-auto max-w-4xl md:grid-cols-2"
+                : "lg:grid-cols-3"
+          }`}
+        >
           {packages.map((item) => {
             const isSelected = selectedPackageKey === item.key;
 

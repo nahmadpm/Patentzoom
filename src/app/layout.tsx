@@ -35,8 +35,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${manrope.variable} ${cormorant.variable} h-full scroll-smooth antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-slate-950 text-white">
+      <body className="min-h-full bg-slate-950 text-white" suppressHydrationWarning>
         <LayoutChrome>{children}</LayoutChrome>
       </body>
     </html>

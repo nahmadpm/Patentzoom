@@ -245,7 +245,11 @@ export function ReferenceServicePage({
           ) : (
             <div
               className={`mt-8 grid gap-6 ${
-                hasSingleOffer ? "mx-auto max-w-[460px]" : "lg:grid-cols-3"
+                hasSingleOffer
+                  ? "mx-auto max-w-[460px]"
+                  : page.offers.cards.length === 2
+                    ? "mx-auto max-w-5xl md:grid-cols-2"
+                    : "lg:grid-cols-3"
               }`}
             >
               {page.offers.cards.map((card) => (

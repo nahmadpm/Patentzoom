@@ -2,7 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { HomeHeroCard } from "@/components/home-hero-card";
-import { contactDetails, resourceCards } from "@/lib/site-data";
+import { ServicePackageAuthTrigger } from "@/components/service-package-auth-trigger";
+import {
+  contactDetails,
+  patentSearchPackages,
+  resourceCards,
+} from "@/lib/site-data";
 
 const searchSteps = [
   {
@@ -143,6 +148,62 @@ export function PatentSearchPage() {
             <div id="consultation" className="relative z-10 mx-auto w-full max-w-[430px]">
               <HomeHeroCard serviceIntent="patent-search" />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#f8f9fb] py-16">
+        <div className="mx-auto w-full max-w-6xl px-6 lg:px-10">
+          <h2 className="text-center text-[3rem] font-light leading-none tracking-[-0.04em] text-[#25306b] sm:text-[3.45rem]">
+            Patent Search Packages
+          </h2>
+          <div className="mt-9 grid gap-6 md:grid-cols-2">
+            {patentSearchPackages.map((item) => (
+              <article
+                key={item.key}
+                className={`relative overflow-hidden border px-7 py-8 text-center ${
+                  item.featured
+                    ? "border-[rgba(251,69,34,0.28)] bg-[linear-gradient(180deg,#fff4ee_0%,#f6e7da_100%)] shadow-[0_22px_56px_rgba(251,69,34,0.12)]"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                {item.badge ? (
+                  <span className="absolute left-1/2 top-0 -translate-x-1/2 rounded-b-[12px] bg-[#fb4522] px-5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-white">
+                    {item.badge}
+                  </span>
+                ) : null}
+                <h3 className="mx-auto max-w-[18ch] text-[2.1rem] font-medium leading-[1.06] tracking-[-0.05em] text-slate-950 sm:text-[2.35rem]">
+                  {item.name}
+                </h3>
+                <p className="mt-5 text-[4rem] font-light leading-none tracking-[-0.08em] text-slate-950">
+                  {item.price}
+                </p>
+                <p className="mt-2 text-[1rem] text-slate-700">{item.fee}</p>
+                <ServicePackageAuthTrigger
+                  buttonLabel={item.ctaLabel}
+                  buttonClassName={`mt-7 w-full rounded-[14px] px-5 py-4 text-[1rem] font-medium uppercase tracking-[0.02em] ${
+                    item.featured
+                      ? "bg-[#2f3578] text-[#5fd2ff]"
+                      : "bg-[#243551] text-white"
+                  }`}
+                  serviceIntent="patent-search"
+                  packageKey={item.key}
+                  packageLabel={item.name}
+                />
+                <ul className="mt-7 space-y-4 border-t border-slate-300/90 pt-6 text-left">
+                  {item.bullets.map((bullet) => (
+                    <li key={bullet} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fb4522] text-xs font-semibold text-white">
+                        OK
+                      </span>
+                      <span className="text-[0.98rem] leading-8 text-slate-700">
+                        {bullet}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
           </div>
         </div>
       </section>

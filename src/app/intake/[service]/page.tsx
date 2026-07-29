@@ -14,7 +14,11 @@ import { IntakeStepSixForm } from "@/components/intake-step-six-form";
 import { getEditableServicePage } from "@/lib/admin-content";
 import { getCurrentUserContext, getIntakeDraft } from "@/lib/auth";
 import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
-import { contactDetails, referenceServicePages } from "@/lib/site-data";
+import {
+  contactDetails,
+  patentSearchPackages,
+  referenceServicePages,
+} from "@/lib/site-data";
 import {
   getIntakeHref,
   getServiceIntentLabel,
@@ -149,6 +153,16 @@ export default async function IntakePage({
         featured: card.featured,
         badge: card.badge,
       }))
+    : normalizedService === "patent-search"
+      ? patentSearchPackages.map((card) => ({
+          key: card.key,
+          name: card.name,
+          price: card.price,
+          fee: card.fee,
+          bullets: card.bullets,
+          featured: card.featured,
+          badge: card.badge,
+        }))
     : [
         {
           key: selectedPackageKey ?? "standard-service",

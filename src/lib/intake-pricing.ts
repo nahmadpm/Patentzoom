@@ -1,11 +1,11 @@
 import { getPricingForService } from "@/lib/admin-content";
-import { referenceServicePages } from "@/lib/site-data";
+import { patentSearchPackages, referenceServicePages } from "@/lib/site-data";
 import {
   getServiceIntentLabel,
   type ServiceIntent,
 } from "@/lib/service-intents";
 
-const SEARCH_REPORT_PRICE_CENTS = 29_500;
+const SEARCH_REPORT_PRICE_CENTS = 29_900;
 
 type SearchOption =
   | "none"
@@ -94,12 +94,30 @@ async function resolvePackage(
   packageLabel: string | null,
 ) {
   if (serviceIntent === "patent-search") {
-    return {
-      key: "patent-search-report",
-      label: "Patent Search Report",
-      priceLabel: "$295",
-      feeLabel: "Search report",
-    } satisfies ResolvedPackage;
+    const packages = patentSearchPackages.map((item) => ({
+      key: item.key,
+      label: item.name,
+      priceLabel: item.price,
+      feeLabel: item.fee,
+    }));
+
+    if (packageKey) {
+      const packageByKey = packages.find((item) => item.key === packageKey);
+
+      if (packageByKey) {
+        return packageByKey satisfies ResolvedPackage;
+      }
+    }
+
+    if (packageLabel) {
+      const packageByLabel = packages.find((item) => item.label === packageLabel);
+
+      if (packageByLabel) {
+        return packageByLabel satisfies ResolvedPackage;
+      }
+    }
+
+    return packages[0] satisfies ResolvedPackage;
   }
 
   if (!(serviceIntent in referenceServicePages)) {

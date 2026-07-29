@@ -8,6 +8,37 @@ export const contactDetails = {
   hours: "Mon-Fri, 7:30 AM to 4:00 PM PT",
 };
 
+export const patentSearchPackages = [
+  {
+    key: "knockout-search",
+    name: "Knockout Search",
+    price: "$299",
+    fee: "Search report",
+    ctaLabel: "Start Knockout Search",
+    bullets: [
+      "Focused first-pass search for close patent references",
+      "Summary of whether the invention direction looks crowded or promising",
+      "Useful before deciding whether to invest in a full filing",
+    ],
+    featured: false,
+    badge: undefined,
+  },
+  {
+    key: "professional-search-with-key-features-mapping",
+    name: "Professional Search (With Key Features Mapping)",
+    price: "$599",
+    fee: "Search report",
+    ctaLabel: "Start Professional Search",
+    bullets: [
+      "Patent search with feature-by-feature mapping against key references",
+      "Stronger guidance for claim direction and filing strategy",
+      "Best fit before drafting a provisional or utility application",
+    ],
+    featured: true,
+    badge: "Popular",
+  },
+] as const;
+
 export const navigationLinks = [
   { href: "/provisional-patent", label: "Provisional Patent" },
   { href: "/utility-patent", label: "Utility Patent" },
@@ -280,24 +311,25 @@ export const referenceServicePages: Record<
     offers: {
       title: "File a Provisional Patent Application",
       footnote:
-        "*$65 Govt Fee assumes micro-entity status. Pricing is temporary for layout review in this pilot.",
+        "*Government fees are charged separately. Pricing is temporary for layout review in this pilot.",
       cards: [
         {
-          name: "Basic",
+          name: "Provisional Essential (Filing Only)",
           price: "$299",
-          fee: "+$65 Govt Fee*",
-          ctaLabel: "Get Basic",
+          fee: "+ Govt Fee*",
+          ctaLabel: "Get Provisional Essential",
           bullets: [
             '"Patent Pending" status for 12 months',
-            "Email consultation with a patent practitioner",
+            "Filing-only provisional application support",
+            "Email consultation with a patent practitioner before submission",
           ],
         },
         {
-          name: "Professional",
+          name: "Provisional Professional (Drafting, Drawing & Filing)",
           badge: "Popular",
-          price: "$899",
-          fee: "+$65 Govt Fee*",
-          ctaLabel: "Get Professional",
+          price: "$799",
+          fee: "+ Govt Fee*",
+          ctaLabel: "Get Provisional Professional",
           bullets: [
             '"Patent Pending" status for 12 months',
             "Professionally drafted patent writing",
@@ -305,19 +337,6 @@ export const referenceServicePages: Record<
             "Phone and email consultation with a patent practitioner",
           ],
           featured: true,
-        },
-        {
-          name: "Essentials",
-          price: "$599",
-          fee: "+$65 Govt Fee*",
-          ctaLabel: "Get Essentials",
-          bullets: [
-            '"Patent Pending" status for 12 months',
-            "Professionally drafted patent writing",
-            "Professionally drafted patent drawings",
-            "Phone and email consultation with a patent practitioner",
-          ],
-          comparison: ["included", "excluded", "included", "included"],
         },
       ],
     },
@@ -457,49 +476,21 @@ export const referenceServicePages: Record<
     offers: {
       title: "File a Non-Provisional Utility Patent Application",
       footnote:
-        "*$400 Govt Fee assumes micro-entity status. Pricing is temporary for layout review and will be refined with final PatentZoom packaging.",
+        "*Government fees are charged separately. Pricing is temporary for layout review and will be refined with final PatentZoom packaging.",
       cards: [
         {
-          name: "Mechanical invention",
+          name: "Utility Patent Single Price",
           imageSrc: "/service-mechanical.svg",
-          imageAlt: "Mechanical invention illustration",
-          price: "$3,300",
-          fee: "+$400 Govt Fee*",
+          imageAlt: "Utility patent filing illustration",
+          price: "$3,200",
+          fee: "+ Govt Fee*",
           ctaLabel: "Start Application",
           bullets: [
-            "Utility filing support for physical products and mechanical systems",
+            "Utility filing support for eligible inventions and product systems",
             "Drafted patent specifications, claims, and coordinated filing",
             "Consultation with a patent attorney or agent before submission",
           ],
-        },
-        {
-          name: "Software or method invention",
-          badge: "Popular",
-          imageSrc: "/service-software.svg",
-          imageAlt: "Software invention illustration",
-          price: "$3,800",
-          fee: "+$400 Govt Fee*",
-          ctaLabel: "Start Application",
-          bullets: [
-            "Built for software flows, system logic, and process-driven inventions",
-            "Claim drafting shaped around functionality and implementation detail",
-            "Prepared application package with filing support and review",
-            "Consultation path designed for startup and product teams",
-          ],
           featured: true,
-        },
-        {
-          name: "Highly technical invention",
-          imageSrc: "/service-technical.svg",
-          imageAlt: "Highly technical invention illustration",
-          price: "$4,300",
-          fee: "+$400 Govt Fee*",
-          ctaLabel: "Start Application",
-          bullets: [
-            "Best fit for biology, chemistry, circuitry, and other deep-technical subject matter",
-            "Additional drafting depth for complex technical disclosure",
-            "Consultation and filing workflow aligned to higher-complexity inventions",
-          ],
         },
       ],
     },
@@ -649,7 +640,7 @@ export const referenceServicePages: Record<
     offers: {
       title: "Design Patent Application",
       footnote:
-        "*$260 Govt Fee assumes micro-entity status. Pricing is temporary for layout review and can be refined once final PatentZoom packaging is approved.",
+        "*Government fees are charged separately. Pricing is temporary for layout review and can be refined once final PatentZoom packaging is approved.",
       showcaseImages: [
         {
           src: "/design-sample-phone.svg",
@@ -670,11 +661,11 @@ export const referenceServicePages: Record<
       ],
       cards: [
         {
-          name: "Design patent filing",
+          name: "Design Patent Single Price",
           imageSrc: "/service-design.svg",
           imageAlt: "Design patent filing illustration",
-          price: "$990",
-          fee: "+$260 Govt Fee*",
+          price: "$949",
+          fee: "+ Govt Fee*",
           ctaLabel: "Start Application",
           bullets: [
             '"Patent Pending" status for the shape of your invention',
