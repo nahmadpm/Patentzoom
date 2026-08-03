@@ -224,8 +224,18 @@ textarea {
 }
 
 .brand-heading {
+  font-family:
+    var(--font-inter),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    Helvetica,
+    sans-serif;
+  font-weight: 750;
   color: var(--brand-ink);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+  text-wrap: balance;
 }
 
 .brand-copy {
@@ -377,9 +387,32 @@ textarea {
 }
 
 .home-section-title {
-  font-family: var(--font-manrope), sans-serif;
-  font-weight: 300;
-  letter-spacing: -0.04em;
+  font-family:
+    var(--font-inter),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    Helvetica,
+    sans-serif;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+main h1[class*="font-light"],
+main h2[class*="font-light"],
+main h3[class*="font-light"] {
+  font-family:
+    var(--font-inter),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    Helvetica,
+    sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+  text-wrap: balance;
 }
 
 @media (max-width: 767px) {
