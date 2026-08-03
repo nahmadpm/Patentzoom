@@ -142,7 +142,7 @@ export default function Home() {
           <div className="relative z-10 max-w-3xl">
             <div className="hero-content-glow absolute -left-10 top-6 h-44 w-44 rounded-full bg-[#fb4522]/12 blur-3xl" />
             <div className="relative">
-              <h1 className="home-title max-w-[10.5ch] text-[2.25rem] leading-[0.92] text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.48)] min-[390px]:text-[2.55rem] sm:max-w-3xl sm:text-[4.7rem]">
+              <h1 className="home-title max-w-[11.5ch] text-[2.15rem] leading-[1.02] text-white drop-shadow-[0_10px_34px_rgba(0,0,0,0.62)] min-[390px]:text-[2.45rem] sm:max-w-3xl sm:text-[4.35rem] sm:leading-[0.98]">
                 Protect Your Ideas with Confidence
               </h1>
               <p className="mt-4 max-w-xl text-[0.97rem] leading-7 text-white drop-shadow-[0_6px_22px_rgba(0,0,0,0.42)] sm:mt-5 sm:max-w-2xl sm:text-[1.32rem] sm:leading-8">
