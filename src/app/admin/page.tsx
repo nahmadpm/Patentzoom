@@ -5,6 +5,7 @@ import { requireAdminSession } from "@/lib/admin";
 import { listArticles, listPricingRecords } from "@/lib/admin-content";
 import { listStoredUsers, type IntakeDraft } from "@/lib/auth";
 import { readConsultationSubmissions } from "@/lib/consultations";
+import { getSeoAutomationOverview } from "@/lib/seo-automation";
 import type { ServiceIntent } from "@/lib/service-intents";
 
 function formatDateTime(value: string) {
@@ -61,11 +62,12 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 export default async function AdminDashboardPage() {
   const adminSession = await requireAdminSession();
-  const [users, consultations, articles, pricingRecords] = await Promise.all([
+  const [users, consultations, articles, pricingRecords, seoOverview] = await Promise.all([
     listStoredUsers(),
     readConsultationSubmissions(),
     listArticles(),
     listPricingRecords(),
+    getSeoAutomationOverview(),
   ]);
 
   const intakeRows: IntakeRow[] = users.flatMap((user) =>
@@ -128,6 +130,7 @@ export default async function AdminDashboardPage() {
     { label: "Uploaded files", value: uploadCount, href: "#files" },
     { label: "Pricing", value: pricingRecords.length, href: "/admin/pricing" },
     { label: "Posts", value: articles.length, href: "/admin/posts" },
+    { label: "SEO Automation", value: seoOverview.jobs.length, href: "/admin/seo-automation" },
     { label: "Settings", value: 2, href: "#settings" },
   ];
 
@@ -357,10 +360,59 @@ export default async function AdminDashboardPage() {
                       >
                         Posts
                       </Link>
+                      <Link
+                        href="/admin/seo-automation"
+                        className="rounded-[9px] border border-[#e7d9cb] bg-white px-3 py-2 text-[11px] font-bold text-[#241c17] hover:text-[#fb4522]"
+                      >
+                        SEO Automation
+                      </Link>
                     </div>
                   </div>
                 </div>
               </div>
+            </AdminPanel>
+
+            <AdminPanel
+              title="Daily SEO article automation"
+              eyebrow="Knowledge Center growth"
+              aside={
+                <Link
+                  href="/admin/seo-automation"
+                  className="rounded-[9px] bg-[#fb4522] px-3 py-2 text-[11px] font-bold text-white"
+                >
+                  Open automation
+                </Link>
+              }
+            >
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["Today", seoOverview.todayCategory ?? "Sunday: no publishing"],
+                  ["Next run", seoOverview.nextRunLabel],
+                  ["Latest status", seoOverview.latestJob?.status ?? "No runs yet"],
+                  [
+                    "Integrations",
+                    `${seoOverview.integrations.filter((item) => item.status === "connected").length}/${seoOverview.integrations.length} connected`,
+                  ],
+                ].map(([label, value]) => (
+                  <article
+                    key={label}
+                    className="rounded-[14px] border border-[#d8e1ee] bg-[#f8fbff] p-3"
+                  >
+                    <p className="text-[11px] text-[#64748b]">{label}</p>
+                    <p className="mt-2 text-[15px] font-bold leading-6 text-[#06183d]">
+                      {value}
+                    </p>
+                  </article>
+                ))}
+              </div>
+              {seoOverview.latestJob?.publishedUrl ? (
+                <Link
+                  href={seoOverview.latestJob.publishedUrl}
+                  className="mt-3 inline-flex text-[12px] font-bold text-[#fb4522]"
+                >
+                  View latest published article
+                </Link>
+              ) : null}
             </AdminPanel>
 
             <div id="intakes" className="scroll-mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">

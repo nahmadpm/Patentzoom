@@ -1,0 +1,42 @@
+name: PatentZoom SEO Article Automation
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-6"
+    - cron: "0 14 * * 1-6"
+  workflow_dispatch:
+
+concurrency:
+  group: patentzoom-seo-article-automation
+  cancel-in-progress: false
+
+jobs:
+  run-seo-automation:
+    name: Run daily SEO article automation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call production automation endpoint
+        env:
+          APP_URL: ${{ vars.PATENTZOOM_APP_URL || 'https://patentzoom.us' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          IS_MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing CRON_SECRET repository secret."
+            exit 1
+          fi
+
+          if [ "$IS_MANUAL" = "true" ]; then
+            BODY='{"manual":true,"retry":true}'
+          else
+            BODY='{}'
+          fi
+
+          curl -fsS \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            --data "$BODY" \
+            "$APP_URL/api/admin/seo-automation/run"

@@ -6,6 +6,21 @@ import { saveArticleAction, type ContentActionState } from "@/app/actions/conten
 import type { ArticleRecord } from "@/lib/admin-content";
 
 const initialState: ContentActionState = {};
+const articleStatuses = [
+  ["published", "Published"],
+  ["draft", "Draft"],
+  ["keyword-candidate", "Keyword Candidate"],
+  ["researching", "Researching"],
+  ["research-brief-ready", "Research Brief Ready"],
+  ["seo-review", "SEO Review"],
+  ["legal-review-required", "Legal Review Required"],
+  ["changes-requested", "Changes Requested"],
+  ["approved", "Approved"],
+  ["scheduled", "Scheduled"],
+  ["failed", "Failed"],
+  ["skipped", "Skipped"],
+  ["update-required", "Update Required"],
+] as const;
 
 function FieldError({
   errors,
@@ -105,8 +120,11 @@ export function AdminArticleForm({ article }: { article?: ArticleRecord | null }
               defaultValue={article?.status ?? "published"}
               className="mt-1 w-full rounded-[10px] border border-[#e7d9cb] px-3 py-2 text-[14px] outline-none focus:border-[#fb4522]"
             >
-              <option value="published">Published</option>
-              <option value="draft">Draft</option>
+              {articleStatuses.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
             <FieldError errors={state.errors} name="status" />
           </label>

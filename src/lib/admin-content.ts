@@ -23,7 +23,20 @@ export type PricingRecord = {
   updatedAt: string;
 };
 
-export type ArticleStatus = "draft" | "published";
+export type ArticleStatus =
+  | "keyword-candidate"
+  | "researching"
+  | "research-brief-ready"
+  | "draft"
+  | "seo-review"
+  | "legal-review-required"
+  | "changes-requested"
+  | "approved"
+  | "scheduled"
+  | "published"
+  | "failed"
+  | "skipped"
+  | "update-required";
 
 export type ArticleRecord = {
   id: string;
@@ -38,6 +51,26 @@ export type ArticleRecord = {
   publishedAt: string;
   createdAt: string;
   updatedAt: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  primaryKeyword?: string;
+  secondaryKeywords?: string[];
+  shortAnswer?: string;
+  keyTakeaways?: string[];
+  tableOfContents?: string[];
+  faqs?: { question: string; answer: string }[];
+  officialSources?: { label: string; url: string }[];
+  internalLinks?: { label: string; href: string }[];
+  ctaLabel?: string;
+  ctaHref?: string;
+  author?: string;
+  reviewer?: string;
+  lastReviewedAt?: string;
+  canonicalUrl?: string;
+  openGraphTitle?: string;
+  openGraphDescription?: string;
+  structuredData?: Record<string, unknown>;
+  automationJobId?: string;
 };
 
 type ContentStore = {
@@ -70,6 +103,26 @@ type ArticleRow = {
   published_at: string | Date;
   created_at: string | Date;
   updated_at: string | Date;
+  seo_title?: string | null;
+  meta_description?: string | null;
+  primary_keyword?: string | null;
+  secondary_keywords?: unknown;
+  short_answer?: string | null;
+  key_takeaways?: unknown;
+  table_of_contents?: unknown;
+  faqs?: unknown;
+  official_sources?: unknown;
+  internal_links?: unknown;
+  cta_label?: string | null;
+  cta_href?: string | null;
+  author?: string | null;
+  reviewer?: string | null;
+  last_reviewed_at?: string | Date | null;
+  canonical_url?: string | null;
+  open_graph_title?: string | null;
+  open_graph_description?: string | null;
+  structured_data?: unknown;
+  automation_job_id?: string | null;
 };
 
 let contentSchemaPromise: Promise<void> | null = null;
@@ -88,6 +141,62 @@ export function normalizeSlug(value: string) {
 
 function normalizeDate(value: string | Date) {
   return new Date(value).toISOString();
+}
+
+function normalizeOptionalDate(value: string | Date | null | undefined) {
+  return value ? normalizeDate(value) : undefined;
+}
+
+function normalizeStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined;
+}
+
+function normalizeLinkArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.filter(
+    (item): item is { label: string; href: string } =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as { label?: unknown }).label === "string" &&
+      typeof (item as { href?: unknown }).href === "string",
+  );
+}
+
+function normalizeSourceArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.filter(
+    (item): item is { label: string; url: string } =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as { label?: unknown }).label === "string" &&
+      typeof (item as { url?: unknown }).url === "string",
+  );
+}
+
+function normalizeFaqArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.filter(
+    (item): item is { question: string; answer: string } =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as { question?: unknown }).question === "string" &&
+      typeof (item as { answer?: unknown }).answer === "string",
+  );
+}
+
+function normalizeJsonObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function getDefaultPricingRecords(): PricingRecord[] {
@@ -223,6 +332,30 @@ async function ensureContentDatabase() {
           updated_at TIMESTAMPTZ NOT NULL
         )
       `);
+
+      await client.query(`
+        ALTER TABLE patentzoom_articles
+          ADD COLUMN IF NOT EXISTS seo_title TEXT,
+          ADD COLUMN IF NOT EXISTS meta_description TEXT,
+          ADD COLUMN IF NOT EXISTS primary_keyword TEXT,
+          ADD COLUMN IF NOT EXISTS secondary_keywords JSONB,
+          ADD COLUMN IF NOT EXISTS short_answer TEXT,
+          ADD COLUMN IF NOT EXISTS key_takeaways JSONB,
+          ADD COLUMN IF NOT EXISTS table_of_contents JSONB,
+          ADD COLUMN IF NOT EXISTS faqs JSONB,
+          ADD COLUMN IF NOT EXISTS official_sources JSONB,
+          ADD COLUMN IF NOT EXISTS internal_links JSONB,
+          ADD COLUMN IF NOT EXISTS cta_label TEXT,
+          ADD COLUMN IF NOT EXISTS cta_href TEXT,
+          ADD COLUMN IF NOT EXISTS author TEXT,
+          ADD COLUMN IF NOT EXISTS reviewer TEXT,
+          ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS canonical_url TEXT,
+          ADD COLUMN IF NOT EXISTS open_graph_title TEXT,
+          ADD COLUMN IF NOT EXISTS open_graph_description TEXT,
+          ADD COLUMN IF NOT EXISTS structured_data JSONB,
+          ADD COLUMN IF NOT EXISTS automation_job_id TEXT
+      `);
     });
   }
 
@@ -257,6 +390,26 @@ function mapArticleRow(row: ArticleRow): ArticleRecord {
     publishedAt: normalizeDate(row.published_at),
     createdAt: normalizeDate(row.created_at),
     updatedAt: normalizeDate(row.updated_at),
+    seoTitle: row.seo_title ?? undefined,
+    metaDescription: row.meta_description ?? undefined,
+    primaryKeyword: row.primary_keyword ?? undefined,
+    secondaryKeywords: normalizeStringArray(row.secondary_keywords),
+    shortAnswer: row.short_answer ?? undefined,
+    keyTakeaways: normalizeStringArray(row.key_takeaways),
+    tableOfContents: normalizeStringArray(row.table_of_contents),
+    faqs: normalizeFaqArray(row.faqs),
+    officialSources: normalizeSourceArray(row.official_sources),
+    internalLinks: normalizeLinkArray(row.internal_links),
+    ctaLabel: row.cta_label ?? undefined,
+    ctaHref: row.cta_href ?? undefined,
+    author: row.author ?? undefined,
+    reviewer: row.reviewer ?? undefined,
+    lastReviewedAt: normalizeOptionalDate(row.last_reviewed_at),
+    canonicalUrl: row.canonical_url ?? undefined,
+    openGraphTitle: row.open_graph_title ?? undefined,
+    openGraphDescription: row.open_graph_description ?? undefined,
+    structuredData: normalizeJsonObject(row.structured_data),
+    automationJobId: row.automation_job_id ?? undefined,
   };
 }
 
@@ -449,6 +602,26 @@ export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" 
     publishedAt: input.publishedAt || now,
     createdAt: now,
     updatedAt: now,
+    seoTitle: input.seoTitle,
+    metaDescription: input.metaDescription,
+    primaryKeyword: input.primaryKeyword,
+    secondaryKeywords: input.secondaryKeywords,
+    shortAnswer: input.shortAnswer,
+    keyTakeaways: input.keyTakeaways,
+    tableOfContents: input.tableOfContents,
+    faqs: input.faqs,
+    officialSources: input.officialSources,
+    internalLinks: input.internalLinks,
+    ctaLabel: input.ctaLabel,
+    ctaHref: input.ctaHref,
+    author: input.author,
+    reviewer: input.reviewer,
+    lastReviewedAt: input.lastReviewedAt,
+    canonicalUrl: input.canonicalUrl,
+    openGraphTitle: input.openGraphTitle,
+    openGraphDescription: input.openGraphDescription,
+    structuredData: input.structuredData,
+    automationJobId: input.automationJobId,
   };
 
   const existing = input.id ? await getArticleById(input.id) : null;
@@ -486,9 +659,29 @@ export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" 
           status,
           published_at,
           created_at,
-          updated_at
+          updated_at,
+          seo_title,
+          meta_description,
+          primary_keyword,
+          secondary_keywords,
+          short_answer,
+          key_takeaways,
+          table_of_contents,
+          faqs,
+          official_sources,
+          internal_links,
+          cta_label,
+          cta_href,
+          author,
+          reviewer,
+          last_reviewed_at,
+          canonical_url,
+          open_graph_title,
+          open_graph_description,
+          structured_data,
+          automation_job_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           slug = EXCLUDED.slug,
@@ -499,7 +692,27 @@ export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" 
           meta = EXCLUDED.meta,
           status = EXCLUDED.status,
           published_at = EXCLUDED.published_at,
-          updated_at = EXCLUDED.updated_at
+          updated_at = EXCLUDED.updated_at,
+          seo_title = EXCLUDED.seo_title,
+          meta_description = EXCLUDED.meta_description,
+          primary_keyword = EXCLUDED.primary_keyword,
+          secondary_keywords = EXCLUDED.secondary_keywords,
+          short_answer = EXCLUDED.short_answer,
+          key_takeaways = EXCLUDED.key_takeaways,
+          table_of_contents = EXCLUDED.table_of_contents,
+          faqs = EXCLUDED.faqs,
+          official_sources = EXCLUDED.official_sources,
+          internal_links = EXCLUDED.internal_links,
+          cta_label = EXCLUDED.cta_label,
+          cta_href = EXCLUDED.cta_href,
+          author = EXCLUDED.author,
+          reviewer = EXCLUDED.reviewer,
+          last_reviewed_at = EXCLUDED.last_reviewed_at,
+          canonical_url = EXCLUDED.canonical_url,
+          open_graph_title = EXCLUDED.open_graph_title,
+          open_graph_description = EXCLUDED.open_graph_description,
+          structured_data = EXCLUDED.structured_data,
+          automation_job_id = EXCLUDED.automation_job_id
       `,
       [
         nextArticle.id,
@@ -514,6 +727,26 @@ export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" 
         nextArticle.publishedAt,
         nextArticle.createdAt,
         nextArticle.updatedAt,
+        nextArticle.seoTitle ?? null,
+        nextArticle.metaDescription ?? null,
+        nextArticle.primaryKeyword ?? null,
+        JSON.stringify(nextArticle.secondaryKeywords ?? []),
+        nextArticle.shortAnswer ?? null,
+        JSON.stringify(nextArticle.keyTakeaways ?? []),
+        JSON.stringify(nextArticle.tableOfContents ?? []),
+        JSON.stringify(nextArticle.faqs ?? []),
+        JSON.stringify(nextArticle.officialSources ?? []),
+        JSON.stringify(nextArticle.internalLinks ?? []),
+        nextArticle.ctaLabel ?? null,
+        nextArticle.ctaHref ?? null,
+        nextArticle.author ?? null,
+        nextArticle.reviewer ?? null,
+        nextArticle.lastReviewedAt ?? null,
+        nextArticle.canonicalUrl ?? null,
+        nextArticle.openGraphTitle ?? null,
+        nextArticle.openGraphDescription ?? null,
+        JSON.stringify(nextArticle.structuredData ?? {}),
+        nextArticle.automationJobId ?? null,
       ],
     );
   });

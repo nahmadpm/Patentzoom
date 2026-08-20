@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   normalizeSlug,
   saveArticle,
+  type ArticleStatus,
   savePricingRecord,
 } from "@/lib/admin-content";
 import { requireAdminSession } from "@/lib/admin";
@@ -44,9 +45,26 @@ const articleSchema = z.object({
   imageUrl: z.string().trim().min(1, { message: "Image URL is required." }),
   body: z.string().trim().min(20, { message: "Article body is required." }),
   meta: z.string().trim().min(2, { message: "Read time/meta is required." }),
-  status: z.enum(["draft", "published"], {
-    message: "Choose draft or published.",
-  }),
+  status: z.enum(
+    [
+      "keyword-candidate",
+      "researching",
+      "research-brief-ready",
+      "draft",
+      "seo-review",
+      "legal-review-required",
+      "changes-requested",
+      "approved",
+      "scheduled",
+      "published",
+      "failed",
+      "skipped",
+      "update-required",
+    ] as [ArticleStatus, ...ArticleStatus[]],
+    {
+      message: "Choose a valid article status.",
+    },
+  ),
   publishedAt: z.string().trim().optional(),
 });
 
