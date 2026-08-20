@@ -1,6 +1,10 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
+import { PatentDirectorySection } from "@/components/patent-directory-section";
 import type { ArticleRecord } from "@/lib/admin-content";
 
 export const fallbackFeaturedArticles = [
@@ -33,42 +37,68 @@ export const fallbackFeaturedArticles = [
   },
 ] as const;
 
-const topicGroups = [
+const knowledgeCategories = [
   {
-    title: "Filing strategy",
+    title: "Patent Search",
     description:
-      "Guides on provisional, utility, design, international, and office-action timing.",
-    href: "/provisional-patent",
+      "Search-focused resources for understanding prior art, patentability, and filing confidence.",
+    icon: "/service-technical.svg",
+  },
+  {
+    title: "Provisional Patent",
+    description:
+      "Early-stage filing guidance for founders preparing to share, launch, or raise.",
     icon: "/file.svg",
   },
   {
-    title: "Prior-art and patentability",
+    title: "Utility Patent",
     description:
-      "Search-focused articles to help founders assess novelty before spending more on drafting.",
-    href: "/patent-search",
-    icon: "/globe.svg",
+      "Resources for protecting how an invention works, how it is built, and what it claims.",
+    icon: "/service-software.svg",
   },
   {
-    title: "Startup IP planning",
+    title: "Design Patent",
     description:
-      "Resources on portfolio sequencing, fundraising readiness, and smarter IP prioritization.",
-    href: "/ip-portfolio-strategy",
+      "Guides for protecting product appearance, shape, exterior form, and design-led value.",
+    icon: "/service-design.svg",
+  },
+  {
+    title: "Patent Filing & Strategy",
+    description:
+      "Practical guidance on filing sequence, portfolio planning, and choosing the next IP step.",
     icon: "/service-strategy.svg",
   },
   {
-    title: "Brand and design protection",
+    title: "Patent Basics",
     description:
-      "Coverage around visual identity, product form, trademark, and design-led defensibility.",
-    href: "/trademark",
-    icon: "/service-trademark.svg",
+      "Plain-English explainers for founders learning the patent process and core protection options.",
+    icon: "/globe.svg",
   },
 ] as const;
 
+type KnowledgeCategory = (typeof knowledgeCategories)[number]["title"];
+
 const quickAnswers = [
-  "Should I do a patent search before filing?",
-  "When does a provisional filing make more sense than a utility filing?",
-  "Can design and utility protection work together?",
-  "How should startups sequence filings across multiple inventions?",
+  {
+    question: "Should I do a patent search before filing?",
+    answer:
+      "A patent search is useful when you are unsure how new the invention is, when competitors are close, or when you want more confidence before spending on drafting and filing.",
+  },
+  {
+    question: "When does a provisional filing make more sense than a utility filing?",
+    answer:
+      "A provisional filing usually makes sense when the invention is still evolving, but you need an early filing date before pitching, publishing, testing, or launching.",
+  },
+  {
+    question: "Can design and utility protection work together?",
+    answer:
+      "Yes. A utility patent can protect how the invention works, while a design patent can protect how the product looks. Some products benefit from both layers of protection.",
+  },
+  {
+    question: "How should startups sequence filings across multiple inventions?",
+    answer:
+      "Start with the inventions tied most closely to product value, fundraising, market differentiation, and disclosure risk. Then build a roadmap for follow-on filings as the product matures.",
+  },
 ] as const;
 
 const serviceReads = [
@@ -99,7 +129,18 @@ const serviceReads = [
 ] as const;
 
 export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] }) {
-  const featuredArticles = articles.slice(0, 3);
+  const [selectedCategory, setSelectedCategory] = useState<KnowledgeCategory | null>(null);
+  const [openAnswer, setOpenAnswer] = useState<string | null>(null);
+  const visibleArticles = useMemo(() => {
+    if (!selectedCategory) {
+      return articles.slice(0, 3);
+    }
+
+    return articles.filter(
+      (article) =>
+        article.category.trim().toLowerCase() === selectedCategory.toLowerCase(),
+    );
+  }, [articles, selectedCategory]);
 
   return (
     <main className="bg-white text-slate-900">
@@ -168,20 +209,32 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
 
       <section className="py-16">
         <div className="mx-auto w-full max-w-7xl px-6 lg:px-10">
-          <div className="flex flex-wrap gap-3">
-            {topicGroups.map((group) => (
-              <Link
-                key={group.title}
-                href={group.href}
-                className="inline-flex items-center border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-[#fb4522] hover:text-[#fb4522]"
+          <div className="flex flex-wrap gap-3" aria-label="Knowledge Center category filters">
+            {knowledgeCategories.map((category) => {
+              const isSelected = selectedCategory === category.title;
+
+              return (
+              <button
+                key={category.title}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() =>
+                  setSelectedCategory(isSelected ? null : category.title)
+                }
+                className={`inline-flex items-center border px-4 py-2 text-sm font-medium transition ${
+                  isSelected
+                    ? "border-[#fb4522] bg-[#fb4522] text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#fb4522] hover:text-[#fb4522]"
+                }`}
               >
-                {group.title}
-              </Link>
-            ))}
+                {category.title}
+              </button>
+              );
+            })}
           </div>
 
           <div className="mt-10 grid gap-6 lg:grid-cols-3">
-            {featuredArticles.map((article) => (
+            {visibleArticles.map((article) => (
               <article
                 key={article.title}
                 className="border border-slate-200 bg-white p-6 shadow-[0_16px_40px_rgba(37,48,107,0.06)]"
@@ -216,38 +269,62 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
               </article>
             ))}
           </div>
+
+          {visibleArticles.length === 0 ? (
+            <div className="mt-10 border border-slate-200 bg-[#f8f9fb] p-8 text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
+                {selectedCategory}
+              </p>
+              <p className="mt-3 text-base leading-7 text-slate-600">
+                Articles for this category will appear here after they are
+                assigned in the admin panel.
+              </p>
+            </div>
+          ) : null}
         </div>
       </section>
+
+      <PatentDirectorySection />
 
       <section className="bg-[#f8f9fb] py-16">
         <div className="mx-auto w-full max-w-7xl px-6 lg:px-10">
           <h2 className="text-center text-[3rem] font-light leading-none tracking-[-0.04em] text-[#25306b] sm:text-[3.35rem]">
             Browse by topic
           </h2>
-          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {topicGroups.map((group) => (
-              <Link
-                key={group.title}
-                href={group.href}
-                className="border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(37,48,107,0.10)]"
+          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {knowledgeCategories.map((category) => {
+              const isSelected = selectedCategory === category.title;
+
+              return (
+              <button
+                key={category.title}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() =>
+                  setSelectedCategory(isSelected ? null : category.title)
+                }
+                className={`border bg-white p-6 text-left transition hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(37,48,107,0.10)] ${
+                  isSelected ? "border-[#fb4522]" : "border-slate-200"
+                }`}
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#25306b] bg-[#f8f9fb]">
                   <Image
-                    src={group.icon}
-                    alt={group.title}
+                    src={category.icon}
+                    alt={category.title}
                     width={34}
                     height={34}
                     className="h-8 w-8 object-contain"
                   />
                 </div>
                 <h3 className="mt-6 text-[1.65rem] font-light leading-8 tracking-[-0.03em] text-[#25306b]">
-                  {group.title}
+                  {category.title}
                 </h3>
                 <p className="mt-4 text-sm leading-8 text-slate-600">
-                  {group.description}
+                  {category.description}
                 </p>
-              </Link>
-            ))}
+              </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -269,16 +346,41 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
           </div>
 
           <div className="grid gap-4">
-            {quickAnswers.map((question) => (
-              <article
-                key={question}
-                className="border border-slate-200 bg-[#f8f9fb] px-6 py-5"
-              >
-                <p className="text-[1.2rem] font-light leading-8 text-[#25306b]">
-                  {question}
-                </p>
-              </article>
-            ))}
+            {quickAnswers.map((item) => {
+              const isOpen = openAnswer === item.question;
+
+              return (
+                <article
+                  key={item.question}
+                  className="border border-slate-200 bg-[#f8f9fb]"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => setOpenAnswer(isOpen ? null : item.question)}
+                    className="flex w-full items-start justify-between gap-4 px-6 py-5 text-left"
+                  >
+                    <span className="text-[1.2rem] font-light leading-8 text-[#25306b]">
+                      {item.question}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center border border-slate-300 text-lg leading-none text-[#25306b]"
+                    >
+                      {isOpen ? "-" : "+"}
+                    </span>
+                  </button>
+
+                  {isOpen ? (
+                    <div className="border-t border-slate-200 px-6 pb-6 pt-4">
+                      <p className="text-sm leading-7 text-slate-600">
+                        {item.answer}
+                      </p>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -330,7 +432,7 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
               This layout is ready for a future headless CMS migration. The
               visual structure is already set up for featured articles, category
-              pages, guides, and service-linked educational content.
+              filters, guides, and service-linked educational content.
             </p>
           </div>
 
