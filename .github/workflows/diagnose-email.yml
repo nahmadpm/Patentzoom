@@ -1,0 +1,52 @@
+name: Diagnose PatentZoom Email
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Check production email without sending messages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
+      SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare read-only diagnostic
+        run: echo "DIAGNOSTIC_BASE64=$(base64 -w0 scripts/diagnose-email.cjs)" >> "$GITHUB_ENV"
+      - name: Verify active production configuration
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          command_timeout: 3m
+          envs: APP_DIR,SERVICE_NAME,DIAGNOSTIC_BASE64
+          script: |
+            set -euo pipefail
+            sudo env APP_DIR="$APP_DIR" SERVICE_NAME="$SERVICE_NAME" DIAGNOSTIC_BASE64="$DIAGNOSTIC_BASE64" python3 - <<'PY'
+            import base64
+            import os
+            import pathlib
+            import subprocess
+
+            app = pathlib.Path(os.environ["APP_DIR"]).resolve(strict=True)
+            service = os.environ["SERVICE_NAME"]
+            def property_value(name):
+                return subprocess.check_output(["systemctl", "show", service, "--property=" + name, "--value"], text=True).strip()
+            if pathlib.Path(property_value("WorkingDirectory")).resolve() != app:
+                raise SystemExit("Service working directory does not match; check aborted.")
+            pid = property_value("MainPID")
+            if not pid.isdigit() or int(pid) <= 0:
+                raise SystemExit("Service is not running; check aborted.")
+            entries = pathlib.Path("/proc", pid, "environ").read_bytes().split(b"\0")
+            environment = dict(entry.decode().split("=", 1) for entry in entries if b"=" in entry)
+            source = base64.b64decode(os.environ["DIAGNOSTIC_BASE64"], validate=True).decode()
+            result = subprocess.run(["/usr/bin/node", "-"], input=source, text=True, cwd=app, env=environment, timeout=120)
+            raise SystemExit(result.returncode)
+            PY

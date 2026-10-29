@@ -95,11 +95,6 @@ export default function ForgotPasswordPage() {
             <h1 className="mt-5 max-w-2xl text-[3rem] font-light leading-[0.98] tracking-[-0.05em] text-white sm:text-[4rem]">
               Reset your password with a temporary access code
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-white/80">
-              This flow now follows the same pattern you pointed out on Thoughts
-              to Paper: request a temporary password by email, then use it to
-              set a new password and continue back into your PatentZoom account.
-            </p>
           </section>
 
           <section className="overflow-hidden rounded-[26px] border border-white/30 bg-[rgba(255,255,255,0.92)] shadow-[0_30px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
