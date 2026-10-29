@@ -6,6 +6,9 @@ on:
     - cron: "0 14 * * 1-6"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: patentzoom-seo-article-automation
   cancel-in-progress: false
@@ -14,6 +17,7 @@ jobs:
   run-seo-automation:
     name: Run daily SEO article automation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Call production automation endpoint
         env:
@@ -34,9 +38,49 @@ jobs:
             BODY='{}'
           fi
 
-          curl -fsS \
+          RESPONSE_FILE=$(mktemp)
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+          export RESPONSE_FILE
+          HTTP_STATUS=$(curl -sS --connect-timeout 15 --max-time 720 \
             -X POST \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             --data "$BODY" \
-            "$APP_URL/api/admin/seo-automation/run"
+            -o "$RESPONSE_FILE" -w '%{http_code}' \
+            "$APP_URL/api/admin/seo-automation/run")
+          export HTTP_STATUS
+
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          from urllib.parse import urlparse
+
+          code = os.environ["HTTP_STATUS"]
+          if code == "401":
+              sys.exit("Production rejected CRON_SECRET. Run Configure PatentZoom SEO Automation to synchronize it.")
+          if not code.startswith("2"):
+              sys.exit("Automation endpoint returned HTTP " + code + ". Check the production service logs.")
+          try:
+              with open(os.environ["RESPONSE_FILE"]) as response:
+                  result = json.load(response)
+          except (ValueError, OSError):
+              sys.exit("Automation endpoint did not return valid JSON.")
+          if not isinstance(result, dict):
+              sys.exit("Automation endpoint returned an unexpected response.")
+          message = str(result.get("message", "No result message."))
+          message = message.replace(os.environ["CRON_SECRET"], "[REDACTED]")
+          message = message.replace("\r", " ").replace("\n", " ")[:600]
+          print("Result: " + str(result.get("status", "unknown")))
+          print("Message: " + message)
+          if result.get("ok") is not True or result.get("status") not in ("published", "draft", "skipped"):
+              sys.exit("Article automation failed. Review the job in the admin automation page.")
+          job = result.get("job") or {}
+          print("Quality warnings: " + str(len(job.get("warnings") or [])))
+          published_url = job.get("publishedUrl")
+          if published_url:
+              parsed = urlparse(published_url)
+              expected = urlparse(os.environ["APP_URL"])
+              if parsed.scheme == expected.scheme and parsed.netloc == expected.netloc and parsed.path.startswith("/knowledge-center/"):
+                  print("Article: " + published_url)
+          PY

@@ -1,0 +1,139 @@
+name: Configure PatentZoom SEO Automation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patentzoom-production
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Synchronize production automation secret
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_DIR: ${{ secrets.AWS_APP_DIR || '/opt/patentzoom' }}
+      SERVICE_NAME: ${{ secrets.AWS_SERVICE_NAME || 'patentzoom.service' }}
+    steps:
+      - name: Prepare secret for encrypted transfer
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import os
+          import re
+
+          secret = os.environ.get("CRON_SECRET", "").strip()
+          if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", secret):
+              raise SystemExit("CRON_SECRET must be a random 32-256 character alphanumeric, hyphen, or underscore token.")
+          encoded = base64.b64encode(secret.encode()).decode()
+          print("::add-mask::" + encoded)
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write("CRON_SECRET_BASE64=" + encoded + "\n")
+          PY
+
+      - name: Update only CRON_SECRET and verify running service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT || 22 }}
+          command_timeout: 8m
+          envs: APP_DIR,SERVICE_NAME,CRON_SECRET_BASE64
+          script: |
+            set -euo pipefail
+            sudo env APP_DIR="$APP_DIR" SERVICE_NAME="$SERVICE_NAME" CRON_SECRET_BASE64="$CRON_SECRET_BASE64" python3 - <<'PY'
+            import base64
+            import datetime
+            import hmac
+            import os
+            import pathlib
+            import re
+            import stat
+            import subprocess
+            import tempfile
+            import time
+            import urllib.error
+            import urllib.request
+
+            app_dir = pathlib.Path(os.environ["APP_DIR"]).resolve(strict=True)
+            env_file = app_dir / ".env.production"
+            service = os.environ["SERVICE_NAME"]
+            secret = base64.b64decode(os.environ["CRON_SECRET_BASE64"], validate=True).decode()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", secret):
+                raise SystemExit("Invalid automation secret format; no changes made.")
+            if env_file.is_symlink() or not env_file.is_file():
+                raise SystemExit("Expected a regular production environment file; no changes made.")
+
+            def systemctl(*args):
+                return subprocess.check_output(["systemctl", *args], text=True).strip()
+
+            working_dir = systemctl("show", service, "--property=WorkingDirectory", "--value")
+            env_files = systemctl("show", service, "--property=EnvironmentFiles", "--value")
+            if pathlib.Path(working_dir).resolve() != app_dir or str(env_file) not in env_files:
+                raise SystemExit("Service configuration does not match the expected production environment; no changes made.")
+
+            original = env_file.read_bytes()
+            original_stat = env_file.stat()
+            lines = original.decode("utf-8").splitlines()
+            remaining = [line for line in lines if not re.match(r"^\s*(?:export\s+)?CRON_SECRET\s*=", line)]
+            updated = ("\n".join(remaining).rstrip() + "\nCRON_SECRET=" + secret + "\n").encode()
+
+            backup_dir = pathlib.Path("/var/backups/patentzoom-seo")
+            backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            backup_dir.chmod(0o700)
+            backup = backup_dir / ("env-production-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
+            with backup.open("xb") as output:
+                os.fchmod(output.fileno(), 0o600)
+                output.write(original)
+
+            def replace_env(content):
+                fd, temporary = tempfile.mkstemp(prefix=".env.seo-", dir=app_dir)
+                try:
+                    with os.fdopen(fd, "wb") as output:
+                        os.fchmod(output.fileno(), stat.S_IMODE(original_stat.st_mode))
+                        os.fchown(output.fileno(), original_stat.st_uid, original_stat.st_gid)
+                        output.write(content)
+                        output.flush()
+                        os.fsync(output.fileno())
+                    os.replace(temporary, env_file)
+                finally:
+                    if os.path.exists(temporary):
+                        os.unlink(temporary)
+
+            try:
+                replace_env(updated)
+                systemctl("restart", service)
+                healthy = False
+                for _ in range(60):
+                    try:
+                        pid = systemctl("show", service, "--property=MainPID", "--value")
+                        entries = pathlib.Path("/proc", pid, "environ").read_bytes().split(b"\0")
+                        environment = dict(entry.split(b"=", 1) for entry in entries if b"=" in entry)
+                        if not hmac.compare_digest(environment.get(b"CRON_SECRET", b""), secret.encode()):
+                            raise RuntimeError("Running service did not load the synchronized secret.")
+                        with urllib.request.urlopen("http://127.0.0.1:8020/admin/login", timeout=5) as response:
+                            healthy = response.status == 200
+                        if healthy:
+                            break
+                    except (OSError, urllib.error.URLError):
+                        time.sleep(2)
+                if not healthy:
+                    raise RuntimeError("Service health check did not pass after restart.")
+            except Exception:
+                replace_env(original)
+                systemctl("restart", service)
+                raise SystemExit("Configuration verification failed. Previous environment restored and service restarted.")
+
+            print("Production CRON_SECRET synchronized; running process verified; admin login returned HTTP 200.")
+            print("Other environment values were preserved. Restricted backup retained on the server.")
+            for name in (b"OPENAI_API_KEY", b"SERPAPI_API_KEY"):
+                print(name.decode() + ": " + ("configured" if environment.get(name, b"").strip() else "missing"))
+            PY
