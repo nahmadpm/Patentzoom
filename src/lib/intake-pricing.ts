@@ -1,5 +1,5 @@
-import { getPricingForService } from "@/lib/admin-content";
-import { patentSearchPackages, referenceServicePages } from "@/lib/site-data";
+import { getPricingForService, getEditablePatentSearchPackages } from "@/lib/admin-content";
+import { referenceServicePages } from "@/lib/site-data";
 import {
   getServiceIntentLabel,
   type ServiceIntent,
@@ -94,7 +94,7 @@ async function resolvePackage(
   packageLabel: string | null,
 ) {
   if (serviceIntent === "patent-search") {
-    const packages = patentSearchPackages.map((item) => ({
+    const packages = (await getEditablePatentSearchPackages()).map((item) => ({
       key: item.key,
       label: item.name,
       priceLabel: item.price,
@@ -117,7 +117,7 @@ async function resolvePackage(
       }
     }
 
-    return packages[0] satisfies ResolvedPackage;
+    return !packageKey && !packageLabel && packages.length === 1 ? packages[0] : null;
   }
 
   if (!(serviceIntent in referenceServicePages)) {
@@ -128,7 +128,7 @@ async function resolvePackage(
     (await getPricingForService(serviceIntent)) ??
     referenceServicePages[serviceIntent as keyof typeof referenceServicePages];
   const cards = page.offers.cards.map((card) => ({
-    key: toPackageKey(card.name),
+    key: card.packageKey ?? toPackageKey(card.name),
     label: card.name,
     priceLabel: card.price,
     feeLabel: card.fee,
@@ -154,7 +154,7 @@ async function resolvePackage(
     }
   }
 
-  if (cards.length === 1) {
+  if (!packageKey && !packageLabel && cards.length === 1) {
     return cards[0];
   }
 

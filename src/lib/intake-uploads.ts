@@ -69,6 +69,8 @@ export async function saveIntakeUploads(input: {
     input.userId,
     input.serviceIntent,
   );
+  const oversized = files.find((file) => file.size > MAX_FILE_SIZE_BYTES);
+  if (oversized) return { ok: false as const, message: `${oversized.name} is larger than the 20 MB per-file limit.` };
   await mkdir(targetDirectory, { recursive: true });
 
   const uploads: UploadedIntakeFile[] = [];

@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 
 import { clearSession } from "@/lib/auth";
 import { isDatabaseConfigured, withDatabase } from "@/lib/postgres";
+import { allowAttempt } from "@/lib/rate-limit";
 
 const scrypt = promisify(scryptCallback);
 
@@ -27,6 +28,7 @@ const RESET_TOKEN_MAX_AGE_MS = 1000 * 60 * 30;
 export type AdminSession = {
   email: string;
   loggedInAt: string;
+  credentialVersion?: string;
 };
 
 type AdminAccount = {
@@ -349,6 +351,9 @@ export function isAdminConfigured() {
 }
 
 export async function setAdminSession(session: AdminSession) {
+  const account = await getAdminAccount();
+  if (!account) throw new Error("Admin account is not configured.");
+  session = { ...session, credentialVersion: createHmac("sha256", ADMIN_SECRET).update(account.passwordHash).digest("hex") };
   const cookieStore = await import("next/headers").then((mod) => mod.cookies());
 
   cookieStore.set(ADMIN_COOKIE_NAME, encodeAdminSession(session), {
@@ -367,7 +372,14 @@ export async function clearAdminSession() {
 
 export async function getAdminSession() {
   const cookieStore = await import("next/headers").then((mod) => mod.cookies());
-  return decodeAdminSession(cookieStore.get(ADMIN_COOKIE_NAME)?.value);
+  const session = decodeAdminSession(cookieStore.get(ADMIN_COOKIE_NAME)?.value);
+  if (!session) return null;
+  const age = Date.now() - new Date(session.loggedInAt).getTime();
+  if (!Number.isFinite(age) || age < 0 || age >= 12 * 60 * 60 * 1000) return null;
+  const account = await getAdminAccount();
+  if (!account || session.email !== account.email) return null;
+  const version = createHmac("sha256", ADMIN_SECRET).update(account.passwordHash).digest("hex");
+  return session.credentialVersion === version ? session : null;
 }
 
 export async function requireAdminSession() {
@@ -381,6 +393,7 @@ export async function requireAdminSession() {
 }
 
 export async function loginAdmin(input: { email: string; password: string }) {
+  if (!await allowAttempt("admin-login", input.email)) return { ok: false as const, message: "Too many attempts. Please try again in 15 minutes." };
   const account = await getAdminAccount();
 
   if (!account) {
@@ -428,6 +441,7 @@ export async function requestAdminPasswordReset(input: {
     resetUrl: string;
   }) => Promise<{ delivery: "smtp" | "outbox" }>;
 }) {
+  if (!await allowAttempt("admin-reset", input.email, 3)) return { ok: false as const, message: "Too many reset requests. Please try again in 15 minutes." };
   const account = await getAdminAccount();
 
   if (!account) {
@@ -518,14 +532,25 @@ export async function resetAdminPasswordWithToken(input: {
   }
 
   const now = new Date().toISOString();
-  await writePersistedAdminAccount({
+  const updatedAccount: AdminAccount = {
     ...account,
     passwordHash: await hashSecret(input.newPassword.trim()),
     resetTokenHash: null,
     resetTokenExpiresAt: null,
     resetTokenSentAt: null,
     updatedAt: now,
-  });
+  };
+  if (isDatabaseConfigured()) {
+    const consumed = await withDatabase((client) => client.query(
+      `UPDATE patentzoom_admin_accounts SET password_hash = $1,
+       reset_token_hash = NULL, reset_token_expires_at = NULL, reset_token_sent_at = NULL, updated_at = $2
+       WHERE id = $3 AND reset_token_hash = $4 AND reset_token_expires_at > NOW() RETURNING id`,
+      [updatedAccount.passwordHash, now, account.id, account.resetTokenHash],
+    ));
+    if (!consumed.rowCount) return { ok: false as const, message: "This reset link was already used or expired. Request a new link." };
+  } else {
+    await writePersistedAdminAccount(updatedAccount);
+  }
 
   await setAdminSession({
     email: account.email,

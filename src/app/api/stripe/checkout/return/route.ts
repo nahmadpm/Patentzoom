@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { markStripeCheckoutStatus } from "@/lib/auth";
+import { getCurrentUserContext, markStripeCheckoutStatus } from "@/lib/auth";
 import { getAppUrl, getStripeClient } from "@/lib/stripe";
 import { getIntakeHref, normalizeServiceIntent } from "@/lib/service-intents";
 
@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const context = await getCurrentUserContext();
+    if (!context) return NextResponse.redirect(buildRedirectUrl(request, "/login"));
     const stripe = getStripeClient();
     const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ["payment_intent"],
@@ -51,14 +53,19 @@ export async function GET(request: NextRequest) {
     const packageKey = checkoutSession.metadata?.packageKey || null;
     const userId = checkoutSession.metadata?.userId ?? null;
 
-    if (!serviceIntent || !userId) {
+    if (!serviceIntent || !userId || userId !== context.user.id) {
       return NextResponse.redirect(
         buildRedirectUrl(request, "/account?checkout=error"),
       );
     }
 
+    const storedPayment = context.user.intakeDrafts?.[serviceIntent]?.paymentInformation;
+    if (storedPayment?.stripeCheckoutSessionId !== checkoutSession.id) {
+      return NextResponse.redirect(buildRedirectUrl(request, "/account?checkout=error"));
+    }
+
     if (checkoutSession.payment_status === "paid") {
-      await markStripeCheckoutStatus({
+      const result = await markStripeCheckoutStatus({
         userId,
         serviceIntent,
         stripeCheckoutSessionId: checkoutSession.id,
@@ -74,6 +81,7 @@ export async function GET(request: NextRequest) {
         stripeAmountTotal: checkoutSession.amount_total ?? null,
         paidAt: new Date().toISOString(),
       });
+      if (!result.ok) return NextResponse.redirect(buildRedirectUrl(request, "/account?checkout=error"));
 
       return NextResponse.redirect(
         buildRedirectUrl(

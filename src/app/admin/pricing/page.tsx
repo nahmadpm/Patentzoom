@@ -8,9 +8,9 @@ import { referenceServicePages } from "@/lib/site-data";
 export default async function AdminPricingPage() {
   await requireAdminSession();
   const records = await listPricingRecords();
-  const groupedRecords = Object.keys(referenceServicePages).map((serviceKey) => ({
+  const groupedRecords = [...Object.keys(referenceServicePages), "patent-search"].map((serviceKey) => ({
     serviceKey,
-    title: referenceServicePages[serviceKey as keyof typeof referenceServicePages].hero.title,
+    title: serviceKey === "patent-search" ? "Patent Search" : referenceServicePages[serviceKey as keyof typeof referenceServicePages].hero.title,
     records: records.filter((record) => record.serviceKey === serviceKey),
   }));
 

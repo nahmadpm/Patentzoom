@@ -22,6 +22,7 @@ export function ServicePackageAuthTrigger({
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!modalOpen) {
@@ -41,10 +42,13 @@ export function ServicePackageAuthTrigger({
   }
 
   function handleButtonClick() {
+    setError("");
     startTransition(async () => {
+      try {
       const sessionResponse = await fetch("/api/auth/session", {
         cache: "no-store",
       });
+      if (!sessionResponse.ok) throw new Error("Session unavailable");
 
       const session = (await sessionResponse.json()) as {
         authenticated: boolean;
@@ -80,6 +84,9 @@ export function ServicePackageAuthTrigger({
       };
       router.push(data.redirectTo);
       router.refresh();
+      } catch {
+        setError("Unable to open the application. Please try again.");
+      }
     });
   }
 
@@ -93,6 +100,7 @@ export function ServicePackageAuthTrigger({
       >
         {isPending ? "Opening..." : buttonLabel}
       </button>
+      {error ? <p role="alert" className="mt-2 text-sm text-red-700">{error}</p> : null}
 
       {modalOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 px-4 py-8 backdrop-blur-[2px]">

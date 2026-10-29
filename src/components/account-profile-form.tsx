@@ -125,6 +125,7 @@ export function AccountProfileForm({
             name="email"
             type="email"
             defaultValue={user.email}
+            readOnly
             className="mt-2 w-full rounded-[16px] border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#fb4522] focus:shadow-[0_0_0_4px_rgba(251,69,34,0.10)]"
           />
           <FieldError errors={state.errors} name="email" />

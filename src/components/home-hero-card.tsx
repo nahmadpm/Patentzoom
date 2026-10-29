@@ -7,6 +7,7 @@ import {
   type AuthActionState,
   loginAction,
   registerStarterAction,
+  resetPasswordWithTemporaryAction,
 } from "@/app/actions/auth";
 import { getIntakeHref, type ServiceIntent } from "@/lib/service-intents";
 
@@ -95,6 +96,9 @@ export function HomeHeroCard({
   const [loginState, loginFormAction, loginPending] = useActionState(
     loginAction,
     initialState,
+  );
+  const [verificationState, verificationAction, verificationPending] = useActionState(
+    resetPasswordWithTemporaryAction, initialState,
   );
 
   const loadSession = useCallback(async () => {
@@ -269,7 +273,37 @@ export function HomeHeroCard({
           ) : null}
         </div>
 
-        {activeTab === "register" ? (
+        {activeTab === "register" && registerState.mode === "verify" ? (
+          <form action={verificationAction} className="space-y-3">
+            <p className="break-words text-sm text-slate-700" role="status">
+              {registerState.delivery === "outbox"
+                ? "Email is not configured locally. Your verification code is in the development outbox."
+                : `A verification code was sent to ${registerState.email}.`}
+            </p>
+            <input type="hidden" name="email" value={registerState.email ?? ""} />
+            <input type="hidden" name="serviceIntent" value={serviceIntent ?? ""} />
+            <input type="hidden" name="packageKey" value={packageKey ?? ""} />
+            <input type="hidden" name="packageLabel" value={packageLabel ?? ""} />
+            {[
+              { name: "temporaryPassword", label: "Email verification code", type: "text", autoComplete: "one-time-code" },
+              { name: "newPassword", label: "Create password", type: "password", autoComplete: "new-password" },
+              { name: "confirmPassword", label: "Confirm password", type: "password", autoComplete: "new-password" },
+            ].map((field) => (
+              <label key={field.name} className="block text-sm text-slate-700">
+                {field.label}
+                <input name={field.name} type={field.type} autoComplete={field.autoComplete} required
+                  className="mt-1 w-full rounded-[15px] border border-slate-300 bg-white px-4 py-2.5 text-slate-900" />
+                <FieldError errors={verificationState.errors} name={field.name} />
+              </label>
+            ))}
+            <button type="submit" disabled={verificationPending}
+              className="w-full rounded-[18px] bg-[#fb4522] px-4 py-3.5 font-semibold text-white disabled:opacity-60">
+              {verificationPending ? "Verifying..." : "Verify & Continue"}
+            </button>
+            <StatusMessage message={verificationState.message} />
+            <Link href="/forgot-password" className="text-sm text-slate-600 underline">Request a new code</Link>
+          </form>
+        ) : activeTab === "register" ? (
           <form action={registerFormAction} className="space-y-3">
             <input type="hidden" name="serviceIntent" value={serviceIntent ?? ""} />
             <input type="hidden" name="packageKey" value={packageKey ?? ""} />
@@ -310,8 +344,7 @@ export function HomeHeroCard({
               {registerPending ? "Creating account..." : registerSubmitLabel}
             </button>
             <p className="text-xs leading-6 text-slate-500">
-              Your PatentZoom account starts here. You&apos;ll complete profile details
-              and password setup inside the account area.
+              Verify your email and create a password to continue.
             </p>
             <StatusMessage message={registerState.message} />
           </form>

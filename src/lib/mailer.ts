@@ -5,6 +5,10 @@ import nodemailer from "nodemailer";
 
 const OUTBOX_PATH = join(process.cwd(), ".codex-temp", "password-reset-outbox.json");
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
+}
+
 type OutboxMessage = {
   to: string;
   subject: string;
@@ -38,7 +42,7 @@ function buildResetEmail({
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
       <h2 style="margin: 0 0 16px; color: #25306b;">PatentZoom Temporary Password</h2>
-      <p>Hello ${displayName || "there"},</p>
+      <p>Hello ${escapeHtml(displayName || "there")},</p>
       <p>We received a request to help you regain access to your PatentZoom account.</p>
       <p>
         Your temporary password is:
@@ -76,9 +80,27 @@ export async function sendTemporaryPasswordEmail(payload: {
 }) {
   const subject = "Your PatentZoom temporary password";
   const html = buildResetEmail(payload);
+  return sendAccountEmail(payload.email, subject, html);
+}
+
+export async function sendRegistrationVerificationEmail(payload: {
+  email: string;
+  temporaryPassword: string;
+  displayName: string;
+}) {
+  return sendAccountEmail(payload.email, "Verify your PatentZoom email", `
+    <h2>Verify your PatentZoom email</h2>
+    <p>Hello ${escapeHtml(payload.displayName || "there")},</p>
+    <p>Your verification code is <strong>${escapeHtml(payload.temporaryPassword)}</strong>.</p>
+    <p>Enter this code on PatentZoom and choose your password. The code expires in 30 minutes.</p>
+    <p>If you did not request this, you can ignore this email.</p>
+  `);
+}
+
+async function sendAccountEmail(email: string, subject: string, html: string) {
   const from =
-    process.env.PATENTZOOM_SMTP_FROM ??
-    process.env.SMTP_FROM ??
+    process.env.PATENTZOOM_SMTP_FROM?.trim() ||
+    process.env.SMTP_FROM?.trim() ||
     "PatentZoom <no-reply@patentzoom.us>";
 
   if (
@@ -91,6 +113,8 @@ export async function sendTemporaryPasswordEmail(payload: {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: Number(process.env.SMTP_PORT) === 465,
+      connectionTimeout: 10_000,
+      socketTimeout: 20_000,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -99,7 +123,7 @@ export async function sendTemporaryPasswordEmail(payload: {
 
     await transporter.sendMail({
       from,
-      to: payload.email,
+      to: email,
       subject,
       html,
     });
@@ -109,8 +133,11 @@ export async function sendTemporaryPasswordEmail(payload: {
     };
   }
 
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Email delivery is not configured.");
+  }
   await writeOutboxMessage({
-    to: payload.email,
+    to: email,
     subject,
     html,
     createdAt: new Date().toISOString(),
@@ -127,47 +154,5 @@ export async function sendAdminPasswordResetEmail(payload: {
 }) {
   const subject = "Reset your PatentZoom admin password";
   const html = buildAdminResetEmail(payload);
-  const from =
-    process.env.PATENTZOOM_SMTP_FROM ??
-    process.env.SMTP_FROM ??
-    "PatentZoom <no-reply@patentzoom.us>";
-
-  if (
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS
-  ) {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: Number(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from,
-      to: payload.email,
-      subject,
-      html,
-    });
-
-    return {
-      delivery: "smtp" as const,
-    };
-  }
-
-  await writeOutboxMessage({
-    to: payload.email,
-    subject,
-    html,
-    createdAt: new Date().toISOString(),
-  });
-
-  return {
-    delivery: "outbox" as const,
-  };
+  return sendAccountEmail(payload.email, subject, html);
 }

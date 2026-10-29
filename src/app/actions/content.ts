@@ -9,6 +9,10 @@ import {
   saveArticle,
   type ArticleStatus,
   savePricingRecord,
+  getArticleBySlug,
+  getArticleById,
+  listPricingRecords,
+  type PricingRecord,
 } from "@/lib/admin-content";
 import { requireAdminSession } from "@/lib/admin";
 import { referenceServicePages } from "@/lib/site-data";
@@ -19,17 +23,15 @@ export type ContentActionState = {
 };
 
 const pricingSchema = z.object({
-  serviceKey: z.enum(
-    Object.keys(referenceServicePages) as [
-      keyof typeof referenceServicePages,
-      ...Array<keyof typeof referenceServicePages>,
-    ],
+  serviceKey: z.custom<PricingRecord["serviceKey"]>((value) =>
+    typeof value === "string" && (value === "patent-search" || Object.hasOwn(referenceServicePages, value)),
+    { message: "Choose a valid service." },
   ),
   packageKey: z.string().trim().min(1, { message: "Package key is required." }),
   packageName: z.string().trim().min(1, { message: "Package name is required." }),
-  price: z.string().trim().regex(/^\$[\d,]+(?:\.\d{1,2})?$/, {
+  price: z.string().trim().regex(/^\$(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/, {
     message: "Use a Stripe-ready price like $899 or $3,300.",
-  }),
+  }).refine((value) => { const amount = Number(value.replace(/[$,]/g, "")); return amount > 0 && amount < 1_000_000; }, { message: "Price must be greater than $0 and less than $1,000,000." }),
   fee: z.string().trim().min(1, { message: "Fee label is required." }),
   ctaLabel: z.string().trim().min(1, { message: "CTA label is required." }),
   featured: z.string().optional(),
@@ -42,7 +44,7 @@ const articleSchema = z.object({
   slug: z.string().trim().optional(),
   category: z.string().trim().min(2, { message: "Category is required." }),
   excerpt: z.string().trim().min(10, { message: "Excerpt is required." }),
-  imageUrl: z.string().trim().min(1, { message: "Image URL is required." }),
+  imageUrl: z.string().trim().refine((value) => /^\/(?!\/)/.test(value) || /^https?:\/\//i.test(value), { message: "Use a local image path or an HTTP(S) image URL." }),
   body: z.string().trim().min(20, { message: "Article body is required." }),
   meta: z.string().trim().min(2, { message: "Read time/meta is required." }),
   status: z.enum(
@@ -65,7 +67,7 @@ const articleSchema = z.object({
       message: "Choose a valid article status.",
     },
   ),
-  publishedAt: z.string().trim().optional(),
+  publishedAt: z.string().trim().refine((value) => !value || Number.isFinite(Date.parse(value)), { message: "Enter a valid publication date." }).optional(),
 });
 
 export async function savePricingAction(
@@ -81,8 +83,8 @@ export async function savePricingAction(
     price: formData.get("price"),
     fee: formData.get("fee"),
     ctaLabel: formData.get("ctaLabel"),
-    featured: formData.get("featured"),
-    active: formData.get("active"),
+    featured: formData.get("featured") ?? undefined,
+    active: formData.get("active") ?? undefined,
   });
 
   if (!validated.success) {
@@ -91,6 +93,10 @@ export async function savePricingAction(
     };
   }
 
+  const records = await listPricingRecords();
+  if (!records.some((record) => record.serviceKey === validated.data.serviceKey && record.packageKey === validated.data.packageKey)) {
+    return { message: "This package no longer exists. Reload the pricing editor." };
+  }
   await savePricingRecord({
     serviceKey: validated.data.serviceKey,
     packageKey: validated.data.packageKey,
@@ -104,6 +110,7 @@ export async function savePricingAction(
 
   revalidatePath("/");
   revalidatePath(`/${validated.data.serviceKey}`);
+  revalidatePath(`/intake/${validated.data.serviceKey}`);
   revalidatePath("/admin/pricing");
   revalidatePath("/admin");
 
@@ -147,6 +154,12 @@ export async function saveArticleAction(
     };
   }
 
+  const existing = validated.data.id ? await getArticleById(validated.data.id) : null;
+  const conflict = await getArticleBySlug(slug);
+  if (conflict && conflict.id !== existing?.id) {
+    return { errors: { slug: ["An article already uses this URL. Choose another slug."] } };
+  }
+
   const article = await saveArticle({
     id: validated.data.id || undefined,
     title: validated.data.title,
@@ -164,6 +177,8 @@ export async function saveArticleAction(
 
   revalidatePath("/knowledge-center");
   revalidatePath(`/knowledge-center/${article.slug}`);
+  if (existing && existing.slug !== article.slug) revalidatePath(`/knowledge-center/${existing.slug}`);
+  revalidatePath("/sitemap.xml");
   revalidatePath("/admin/posts");
   revalidatePath("/admin");
 

@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
 
 import { type ServiceIntent, normalizeServiceIntent } from "@/lib/service-intents";
 
@@ -25,6 +26,9 @@ const OAUTH_SECRET =
 const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 
 function getAppUrl(requestUrl: string) {
+  if (process.env.NODE_ENV !== "production") {
+    return new URL(requestUrl).origin;
+  }
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
@@ -54,7 +58,7 @@ function getProviderConfig(provider: OAuthProvider) {
 }
 
 function sanitizeReturnTo(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\r\n]/.test(value)) {
     return "/";
   }
 
@@ -73,7 +77,7 @@ export function getOAuthConfiguration(provider: OAuthProvider) {
   return getProviderConfig(provider);
 }
 
-export function createOAuthState(input: {
+export async function createOAuthState(input: {
   provider: OAuthProvider;
   returnTo: string | null;
   serviceIntent: string | null;
@@ -94,11 +98,23 @@ export function createOAuthState(input: {
     .update(payload)
     .digest("base64url");
 
-  return `${payload}.${signature}`;
+  const value = `${payload}.${signature}`;
+  (await cookies()).set(`patentzoom_oauth_${input.provider}`, value, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth/oauth",
+    maxAge: STATE_MAX_AGE_MS / 1000,
+  });
+  return value;
 }
 
-export function readOAuthState(value: string | null, provider: OAuthProvider) {
-  if (!value) {
+export async function readOAuthState(value: string | null, provider: OAuthProvider) {
+  const cookieStore = await cookies();
+  const cookieName = `patentzoom_oauth_${provider}`;
+  const expectedState = cookieStore.get(cookieName)?.value;
+  cookieStore.set(cookieName, "", { path: "/api/auth/oauth", maxAge: 0 });
+  if (!value || !expectedState || value !== expectedState) {
     return null;
   }
 
@@ -128,6 +144,7 @@ export function readOAuthState(value: string | null, provider: OAuthProvider) {
 
     if (
       state.provider !== provider ||
+      !Number.isFinite(state.issuedAt) || state.issuedAt > Date.now() ||
       Date.now() - state.issuedAt > STATE_MAX_AGE_MS
     ) {
       return null;
@@ -140,7 +157,7 @@ export function readOAuthState(value: string | null, provider: OAuthProvider) {
 }
 
 export function buildOAuthErrorRedirect(returnTo: string, message: string) {
-  const redirectUrl = new URL(returnTo, "https://patentzoom.local");
+  const redirectUrl = new URL(sanitizeReturnTo(returnTo), "https://patentzoom.local");
   redirectUrl.searchParams.set("authMessage", message);
   return `${redirectUrl.pathname}${redirectUrl.search}`;
 }
@@ -199,8 +216,12 @@ export async function exchangeOAuthCode(input: {
       given_name?: string;
       family_name?: string;
       name?: string;
+      email_verified?: boolean;
     };
 
+    if (profile.email_verified !== true) {
+      throw new Error("Google did not verify this email address.");
+    }
     return normalizeOAuthProfile(profile);
   }
 

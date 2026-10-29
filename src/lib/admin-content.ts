@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   referenceServicePages,
+  patentSearchPackages,
   type ReferenceServicePageData,
 } from "@/lib/site-data";
 import { isDatabaseConfigured, withDatabase } from "@/lib/postgres";
@@ -12,7 +13,7 @@ import type { ServiceIntent } from "@/lib/service-intents";
 const CONTENT_STORE_PATH = join(process.cwd(), ".codex-temp", "admin-content-store.json");
 
 export type PricingRecord = {
-  serviceKey: keyof typeof referenceServicePages;
+  serviceKey: keyof typeof referenceServicePages | "patent-search";
   packageKey: string;
   packageName: string;
   price: string;
@@ -200,7 +201,7 @@ function normalizeJsonObject(value: unknown) {
 }
 
 function getDefaultPricingRecords(): PricingRecord[] {
-  return Object.entries(referenceServicePages).flatMap(([serviceKey, page]) =>
+  const serviceRecords = Object.entries(referenceServicePages).flatMap(([serviceKey, page]) =>
     page.offers.cards.map((card) => ({
       serviceKey: serviceKey as keyof typeof referenceServicePages,
       packageKey: toPackageKey(card.name),
@@ -213,6 +214,11 @@ function getDefaultPricingRecords(): PricingRecord[] {
       updatedAt: new Date(0).toISOString(),
     })),
   );
+  return [...serviceRecords, ...patentSearchPackages.map((card): PricingRecord => ({
+    serviceKey: "patent-search", packageKey: card.key, packageName: card.name,
+    price: card.price, fee: card.fee, ctaLabel: card.ctaLabel, featured: card.featured,
+    active: true, updatedAt: new Date(0).toISOString(),
+  }))];
 }
 
 function getDefaultArticles(): ArticleRecord[] {
@@ -541,6 +547,7 @@ export async function getEditableServicePage(serviceKey: keyof typeof referenceS
 
           return {
             ...card,
+            packageKey,
             name: override.packageName,
             price: override.price,
             fee: override.fee,
@@ -561,9 +568,25 @@ export async function getPricingForService(serviceIntent: ServiceIntent) {
   return getEditableServicePage(serviceIntent as keyof typeof referenceServicePages);
 }
 
+export async function getEditablePatentSearchPackages() {
+  const records = await listPricingRecords();
+  return patentSearchPackages.flatMap((card) => {
+    const record = records.find((item) => item.serviceKey === "patent-search" && item.packageKey === card.key);
+    if (record?.active === false) return [];
+    return [{ ...card, name: record?.packageName ?? card.name, price: record?.price ?? card.price,
+      fee: record?.fee ?? card.fee, ctaLabel: record?.ctaLabel ?? card.ctaLabel,
+      featured: record?.featured ?? card.featured }];
+  });
+}
+
 export async function listArticles() {
   const saved = await readSavedArticles();
-  return saved.length ? saved : getDefaultArticles();
+  const savedIds = new Set(saved.map((article) => article.id));
+  const savedSlugs = new Set(saved.map((article) => article.slug));
+  const defaults = getDefaultArticles().filter(
+    (article) => !savedIds.has(article.id) && !savedSlugs.has(article.slug),
+  );
+  return [...saved, ...defaults];
 }
 
 export async function listPublishedArticles() {
@@ -589,6 +612,7 @@ export async function getArticleById(id: string) {
 
 export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const now = new Date().toISOString();
+  const existing = input.id ? await getArticleById(input.id) : null;
   const nextArticle: ArticleRecord = {
     id: input.id || randomUUID(),
     title: input.title,
@@ -602,29 +626,28 @@ export async function saveArticle(input: Omit<ArticleRecord, "id" | "createdAt" 
     publishedAt: input.publishedAt || now,
     createdAt: now,
     updatedAt: now,
-    seoTitle: input.seoTitle,
-    metaDescription: input.metaDescription,
-    primaryKeyword: input.primaryKeyword,
-    secondaryKeywords: input.secondaryKeywords,
-    shortAnswer: input.shortAnswer,
-    keyTakeaways: input.keyTakeaways,
-    tableOfContents: input.tableOfContents,
-    faqs: input.faqs,
-    officialSources: input.officialSources,
-    internalLinks: input.internalLinks,
-    ctaLabel: input.ctaLabel,
-    ctaHref: input.ctaHref,
-    author: input.author,
-    reviewer: input.reviewer,
-    lastReviewedAt: input.lastReviewedAt,
-    canonicalUrl: input.canonicalUrl,
-    openGraphTitle: input.openGraphTitle,
-    openGraphDescription: input.openGraphDescription,
-    structuredData: input.structuredData,
-    automationJobId: input.automationJobId,
+    seoTitle: input.seoTitle ?? existing?.seoTitle,
+    metaDescription: input.metaDescription ?? existing?.metaDescription,
+    primaryKeyword: input.primaryKeyword ?? existing?.primaryKeyword,
+    secondaryKeywords: input.secondaryKeywords ?? existing?.secondaryKeywords,
+    shortAnswer: input.shortAnswer ?? existing?.shortAnswer,
+    keyTakeaways: input.keyTakeaways ?? existing?.keyTakeaways,
+    tableOfContents: input.tableOfContents ?? existing?.tableOfContents,
+    faqs: input.faqs ?? existing?.faqs,
+    officialSources: input.officialSources ?? existing?.officialSources,
+    internalLinks: input.internalLinks ?? existing?.internalLinks,
+    ctaLabel: input.ctaLabel ?? existing?.ctaLabel,
+    ctaHref: input.ctaHref ?? existing?.ctaHref,
+    author: input.author ?? existing?.author,
+    reviewer: input.reviewer ?? existing?.reviewer,
+    lastReviewedAt: input.lastReviewedAt ?? existing?.lastReviewedAt,
+    canonicalUrl: input.canonicalUrl ?? (existing?.slug === normalizeSlug(input.slug || input.title) ? existing.canonicalUrl : undefined),
+    openGraphTitle: input.openGraphTitle ?? existing?.openGraphTitle,
+    openGraphDescription: input.openGraphDescription ?? existing?.openGraphDescription,
+    structuredData: input.structuredData ?? existing?.structuredData,
+    automationJobId: input.automationJobId ?? existing?.automationJobId,
   };
 
-  const existing = input.id ? await getArticleById(input.id) : null;
   if (existing) {
     nextArticle.createdAt = existing.createdAt;
   }

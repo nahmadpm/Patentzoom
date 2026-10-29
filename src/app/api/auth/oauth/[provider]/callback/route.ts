@@ -23,7 +23,7 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams;
   const error = searchParams.get("error");
   const code = searchParams.get("code");
-  const state = readOAuthState(searchParams.get("state"), provider);
+  const state = await readOAuthState(searchParams.get("state"), provider);
   const returnTo = state?.returnTo || "/";
 
   if (error) {
@@ -39,6 +39,7 @@ export async function GET(
     );
   }
 
+  let redirectTo: string;
   try {
     const profile = await exchangeOAuthCode({
       provider,
@@ -55,7 +56,7 @@ export async function GET(
       pendingPackageLabel: state.packageLabel,
     });
 
-    redirect(result.redirectTo);
+    redirectTo = result.redirectTo;
   } catch {
     redirect(
       buildOAuthErrorRedirect(
@@ -64,4 +65,5 @@ export async function GET(
       ),
     );
   }
+  redirect(redirectTo);
 }

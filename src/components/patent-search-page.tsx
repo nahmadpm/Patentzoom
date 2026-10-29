@@ -5,9 +5,9 @@ import { HomeHeroCard } from "@/components/home-hero-card";
 import { ServicePackageAuthTrigger } from "@/components/service-package-auth-trigger";
 import {
   contactDetails,
-  patentSearchPackages,
   resourceCards,
 } from "@/lib/site-data";
+import type { getEditablePatentSearchPackages } from "@/lib/admin-content";
 
 const searchSteps = [
   {
@@ -100,7 +100,7 @@ const contactChannels = [
   },
 ] as const;
 
-export function PatentSearchPage() {
+export function PatentSearchPage({ packages }: { packages: Awaited<ReturnType<typeof getEditablePatentSearchPackages>> }) {
   return (
     <main className="bg-white text-slate-900">
       <section className="border-b border-slate-200 bg-white">
@@ -158,7 +158,7 @@ export function PatentSearchPage() {
             Patent Search Packages
           </h2>
           <div className="mt-9 grid gap-6 md:grid-cols-2">
-            {patentSearchPackages.map((item) => (
+            {packages.map((item) => (
               <article
                 key={item.key}
                 className={`relative overflow-hidden border px-7 py-8 text-center ${

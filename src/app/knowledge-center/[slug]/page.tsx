@@ -140,12 +140,12 @@ export default async function KnowledgeArticlePage({
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd).replace(/</g, "\\u003c") }}
       />
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, "\\u003c") }}
       />
       <section className="border-b border-slate-200 bg-[#f8f9fb] py-14">
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 lg:grid-cols-[1fr_0.72fr] lg:px-10">
@@ -176,6 +176,7 @@ export default async function KnowledgeArticlePage({
           <div className="flex items-center justify-center rounded-[24px] border border-slate-200 bg-white p-8">
             <Image
               src={article.imageUrl}
+            unoptimized
               alt={article.title}
               width={360}
               height={260}

@@ -188,7 +188,7 @@ export function ReferenceServicePage({
                     buttonLabel={card.ctaLabel}
                     buttonClassName="mt-6 w-full rounded-[14px] bg-[#241c17] px-5 py-3.5 text-[1rem] font-medium uppercase tracking-[0.02em] text-white shadow-[0_14px_30px_rgba(36,28,23,0.15)]"
                     serviceIntent={serviceIntent}
-                    packageKey={toPackageKey(card.name)}
+                    packageKey={card.packageKey ?? toPackageKey(card.name)}
                     packageLabel={card.name}
                   />
 
@@ -297,7 +297,7 @@ export function ReferenceServicePage({
                         : "bg-[#243551] text-white"
                     }`}
                     serviceIntent={serviceIntent}
-                    packageKey={toPackageKey(card.name)}
+                    packageKey={card.packageKey ?? toPackageKey(card.name)}
                     packageLabel={card.name}
                   />
 
@@ -487,12 +487,12 @@ export function ReferenceServicePage({
       </section>
 
       <section className="py-16">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-10">
-          <div className="border border-slate-200 bg-[#243551] p-8 text-white">
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-10">
+          <div className="min-w-0 border border-slate-200 bg-[#243551] p-6 text-white sm:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#fb4522]">
               Patent Search
             </p>
-            <h2 className="mt-4 text-[2.8rem] font-light leading-none tracking-[-0.04em]">
+            <h2 className="mt-4 break-words text-[2rem] font-light leading-tight tracking-normal sm:text-[2.8rem]">
               {page.searchPrompt.title}
             </h2>
             <p className="mt-5 text-base leading-8 text-slate-200">

@@ -133,7 +133,7 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
   const [openAnswer, setOpenAnswer] = useState<string | null>(null);
   const visibleArticles = useMemo(() => {
     if (!selectedCategory) {
-      return articles.slice(0, 3);
+      return articles;
     }
 
     return articles.filter(
@@ -248,6 +248,7 @@ export function KnowledgeCenterPage({ articles }: { articles: ArticleRecord[] })
                 <Link href={`/knowledge-center/${article.slug}`} className="mt-5 flex h-36 items-center justify-center rounded-[22px] bg-[#edf2fb]">
                   <Image
                     src={article.imageUrl}
+                    unoptimized
                     alt={article.title}
                     width={180}
                     height={120}

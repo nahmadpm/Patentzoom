@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 
 import type { UploadedIntakeFile } from "@/lib/intake-upload-types";
 import { isDatabaseConfigured, withDatabase } from "@/lib/postgres";
+import { allowAttempt } from "@/lib/rate-limit";
 import {
   type ServiceIntent,
   getIntakeHref,
@@ -18,7 +19,7 @@ const AUTH_COOKIE_NAME = "patentzoom_session";
 const AUTH_SECRET =
   process.env.PATENTZOOM_AUTH_SECRET ?? "patentzoom-dev-session-secret";
 const AUTH_STORE_PATH = join(process.cwd(), ".codex-temp", "auth-store.json");
-const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 10;
+const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export type StoredUser = {
   id: string;
@@ -114,6 +115,8 @@ type AuthStore = {
 };
 
 export type SessionUser = {
+  credentialVersion?: string;
+  expiresAt?: number;
   userId: string;
   email: string;
   displayName: string;
@@ -149,6 +152,7 @@ type UserRow = {
 };
 
 let authSchemaPromise: Promise<void> | null = null;
+let fileWriteQueue: Promise<void> = Promise.resolve();
 
 async function ensureAuthFileStore() {
   await mkdir(join(process.cwd(), ".codex-temp"), { recursive: true });
@@ -425,17 +429,23 @@ export async function listStoredUsers() {
   return store.users.map(hydrateUser);
 }
 
-async function writeAuthStore(store: AuthStore) {
+async function writeStoredUser(user: StoredUser) {
   if (!isDatabaseConfigured()) {
-    await writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+    const write = fileWriteQueue.then(async () => {
+      const store = await readAuthFileStore();
+      const index = store.users.findIndex((entry) => entry.id === user.id);
+      if (index < 0) store.users.push(user);
+      else store.users[index] = user;
+      await writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+    });
+    fileWriteQueue = write.catch(() => {});
+    await write;
     return;
   }
 
   await ensureAuthDatabase();
 
-  for (const user of store.users.map(hydrateUser)) {
-    await upsertUserRow(user);
-  }
+  await upsertUserRow(hydrateUser(user));
 }
 
 function hydrateUser(user: StoredUser): StoredUser {
@@ -488,6 +498,7 @@ function buildSessionUser(
   pendingPackageLabel: string | null,
 ): SessionUser {
   return {
+    credentialVersion: createHmac("sha256", AUTH_SECRET).update(user.passwordHash ?? "oauth").digest("hex"),
     userId: user.id,
     email: user.email,
     displayName: getDisplayName(user),
@@ -502,7 +513,7 @@ function buildSessionUser(
 }
 
 function encodeSession(session: SessionUser) {
-  const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...session, expiresAt: Date.now() + AUTH_COOKIE_MAX_AGE_SECONDS * 1000 })).toString("base64url");
   const signature = createHmac("sha256", AUTH_SECRET)
     .update(payload)
     .digest("base64url");
@@ -536,7 +547,8 @@ function decodeSession(value: string | undefined) {
   }
 
   try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
+    return typeof session.expiresAt === "number" && session.expiresAt > Date.now() && typeof session.userId === "string" ? session : null;
   } catch {
     return null;
   }
@@ -586,6 +598,7 @@ export async function getCurrentUserContext() {
     session.pendingPackageKey ?? null,
     session.pendingPackageLabel ?? null,
   );
+  if (freshSession.credentialVersion !== session.credentialVersion) return null;
 
   return {
     session: freshSession,
@@ -605,45 +618,71 @@ async function updateIntakeDraftByUserId(input: {
   serviceIntent: ServiceIntent;
   currentStep: number;
   patch: Partial<IntakeDraft>;
+  expectedCheckoutSessionId: string | null;
 }) {
-  const store = await readAuthStore();
-  const userIndex = store.users.findIndex((entry) => entry.id === input.userId);
-
-  if (userIndex === -1) {
-    return {
-      ok: false as const,
-      message: "We could not load your account for the Stripe update.",
-    };
-  }
-
-  const hydratedUser = hydrateUser(store.users[userIndex]);
   const now = new Date().toISOString();
-  const existingDraft = hydratedUser.intakeDrafts?.[input.serviceIntent];
-
-  if (!existingDraft) {
-    return {
-      ok: false as const,
-      message: "We could not find the intake draft for this Stripe update.",
-    };
+  if (isDatabaseConfigured()) {
+    await ensureAuthDatabase();
+    const result = await withDatabase((client) => client.query(
+      `UPDATE patentzoom_users SET intake_drafts = jsonb_set(
+         intake_drafts, ARRAY[$2]::text[],
+         (intake_drafts -> $2) || $3::jsonb
+       ), updated_at = $4
+       WHERE id = $1
+         AND intake_drafts -> $2 -> 'paymentInformation' ->> 'stripeCheckoutStatus' IS DISTINCT FROM 'paid'
+         AND intake_drafts -> $2 -> 'paymentInformation' ->> 'stripeCheckoutSessionId' IS NOT DISTINCT FROM $5
+         AND intake_drafts ? $2
+       RETURNING id`,
+      [input.userId, input.serviceIntent, JSON.stringify({ ...input.patch, currentStep: input.currentStep, updatedAt: now }), now, input.expectedCheckoutSessionId],
+    ));
+    return { ok: true as const, ignored: !result.rowCount };
   }
+  const write = fileWriteQueue.then(async () => {
+    const store = await readAuthStore();
+    const userIndex = store.users.findIndex((entry) => entry.id === input.userId);
 
-  const nextDraft: IntakeDraft = {
-    ...existingDraft,
-    currentStep: input.currentStep,
-    updatedAt: now,
-    ...input.patch,
-  };
+    if (userIndex === -1) {
+      return {
+        ok: false as const,
+        message: "We could not load your account for the Stripe update.",
+      };
+    }
 
-  hydratedUser.intakeDrafts = hydratedUser.intakeDrafts ?? {};
-  hydratedUser.intakeDrafts[input.serviceIntent] = nextDraft;
-  hydratedUser.updatedAt = now;
-  store.users[userIndex] = hydratedUser;
-  await writeAuthStore(store);
+    const hydratedUser = hydrateUser(store.users[userIndex]);
+    const existingDraft = hydratedUser.intakeDrafts?.[input.serviceIntent];
 
-  return {
-    ok: true as const,
-    draft: nextDraft,
-  };
+    if (!existingDraft) {
+      return {
+        ok: false as const,
+        message: "We could not find the intake draft for this Stripe update.",
+      };
+    }
+
+    if (existingDraft.paymentInformation?.stripeCheckoutStatus === "paid" ||
+        existingDraft.paymentInformation?.stripeCheckoutSessionId !== input.expectedCheckoutSessionId) {
+      return { ok: true as const, ignored: true };
+    }
+
+    const nextDraft: IntakeDraft = {
+      ...existingDraft,
+      currentStep: input.currentStep,
+      updatedAt: now,
+      ...input.patch,
+    };
+
+    hydratedUser.intakeDrafts = hydratedUser.intakeDrafts ?? {};
+    hydratedUser.intakeDrafts[input.serviceIntent] = nextDraft;
+    hydratedUser.updatedAt = now;
+    store.users[userIndex] = hydratedUser;
+    await writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+
+    return {
+      ok: true as const,
+      draft: nextDraft,
+    };
+  });
+  fileWriteQueue = write.then(() => {}, () => {});
+  return write;
 }
 
 function buildIntakeStepHref(
@@ -710,7 +749,7 @@ async function persistIntakeDraft(input: {
 
   const userIndex = store.users.findIndex((entry) => entry.id === hydratedUser.id);
   store.users[userIndex] = hydratedUser;
-  await writeAuthStore(store);
+  await writeStoredUser(hydratedUser);
 
   const session = buildSessionUser(
     hydratedUser,
@@ -771,6 +810,7 @@ export async function registerStarterUser(input: {
   pendingService: ServiceIntent | null;
   pendingPackageKey: string | null;
   pendingPackageLabel: string | null;
+  sendEmail: Parameters<typeof requestTemporaryPassword>[0]["sendEmail"];
 }) {
   const store = await readAuthStore();
   const normalizedEmail = normalizeEmail(input.email);
@@ -786,27 +826,7 @@ export async function registerStarterUser(input: {
   const now = new Date().toISOString();
 
   if (existingUser) {
-    const { firstName, lastName } = splitName(input.name);
-    existingUser.firstName = existingUser.firstName || firstName;
-    existingUser.lastName = existingUser.lastName || lastName;
-    existingUser.phone = existingUser.phone || input.phone.trim();
-    existingUser.updatedAt = now;
-
-    await writeAuthStore(store);
-
-    const hydratedExistingUser = hydrateUser(existingUser);
-    const session = buildSessionUser(
-      hydratedExistingUser,
-      input.pendingService,
-      input.pendingPackageKey,
-      input.pendingPackageLabel,
-    );
-    await setSession(session);
-
-    return {
-      ok: true as const,
-      redirectTo: getPostAuthHref(session),
-    };
+    return requestTemporaryPassword({ email: normalizedEmail, sendEmail: input.sendEmail });
   }
 
   const { firstName, lastName } = splitName(input.name);
@@ -831,21 +851,8 @@ export async function registerStarterUser(input: {
     updatedAt: now,
   };
 
-  store.users.push(user);
-  await writeAuthStore(store);
-
-  const session = buildSessionUser(
-    user,
-    input.pendingService,
-    input.pendingPackageKey,
-    input.pendingPackageLabel,
-  );
-  await setSession(session);
-
-  return {
-    ok: true as const,
-    redirectTo: getPostAuthHref(session),
-  };
+  await writeStoredUser(user);
+  return requestTemporaryPassword({ email: normalizedEmail, sendEmail: input.sendEmail });
 }
 
 export async function loginUser(input: {
@@ -855,6 +862,7 @@ export async function loginUser(input: {
   pendingPackageKey: string | null;
   pendingPackageLabel: string | null;
 }) {
+  if (!await allowAttempt("login", input.email)) return { ok: false as const, message: "Too many attempts. Please try again in 15 minutes." };
   const store = await readAuthStore();
   const normalizedEmail = normalizeEmail(input.email);
   const user = store.users.find((entry) => entry.email === normalizedEmail);
@@ -862,7 +870,7 @@ export async function loginUser(input: {
   if (!user) {
     return {
       ok: false as const,
-      message: "We could not find an account with that email.",
+      message: "Email or password is incorrect.",
     };
   }
 
@@ -879,7 +887,7 @@ export async function loginUser(input: {
   if (!passwordMatches) {
     return {
       ok: false as const,
-      message: "The password you entered is incorrect.",
+      message: "Email or password is incorrect.",
     };
   }
 
@@ -940,7 +948,7 @@ export async function loginOAuthUser(input: {
     store.users.push(user);
   }
 
-  await writeAuthStore(store);
+  await writeStoredUser(user);
 
   const session = buildSessionUser(
     hydrateUser(user),
@@ -994,6 +1002,7 @@ export async function updateCurrentUserProfile(input: {
   }
 
   const nextEmail = normalizeEmail(input.email);
+  if (nextEmail !== user.email) return { ok: false as const, message: "Please contact support to change your verified email address." };
   const conflict = store.users.find(
     (entry) => entry.email === nextEmail && entry.id !== user.id,
   );
@@ -1025,7 +1034,7 @@ export async function updateCurrentUserProfile(input: {
     user.resetPasswordSentAt = null;
   }
 
-  await writeAuthStore(store);
+  await writeStoredUser(user);
 
   const session = buildSessionUser(
     hydrateUser(user),
@@ -1049,14 +1058,17 @@ export async function requestTemporaryPassword(input: {
     displayName: string;
   }) => Promise<{ delivery: "smtp" | "outbox" }>;
 }) {
+  if (!await allowAttempt("email-code", input.email, 3)) return { ok: false as const, message: "Too many code requests. Please try again in 15 minutes." };
   const store = await readAuthStore();
   const normalizedEmail = normalizeEmail(input.email);
   const user = store.users.find((entry) => entry.email === normalizedEmail);
 
   if (!user) {
     return {
-      ok: false as const,
-      message: "We could not find an account with that email.",
+      ok: true as const,
+      email: normalizedEmail,
+      delivery: "smtp" as const,
+      message: "If an account exists for this email, a temporary code has been sent.",
     };
   }
 
@@ -1068,7 +1080,7 @@ export async function requestTemporaryPassword(input: {
   ).toISOString();
   user.updatedAt = new Date().toISOString();
 
-  await writeAuthStore(store);
+  await writeStoredUser(user);
 
   const emailResult = await input.sendEmail({
     email: user.email,
@@ -1081,7 +1093,7 @@ export async function requestTemporaryPassword(input: {
     email: user.email,
     delivery: emailResult.delivery,
     message:
-      "An email has been sent to you with a temporary password. Please check your email and enter the temporary password below.",
+      "If an account exists for this email, a temporary code has been sent.",
   };
 }
 
@@ -1089,7 +1101,11 @@ export async function resetPasswordWithTemporary(input: {
   email: string;
   temporaryPassword: string;
   newPassword: string;
+  pendingService?: ServiceIntent | null;
+  pendingPackageKey?: string | null;
+  pendingPackageLabel?: string | null;
 }) {
+  if (!await allowAttempt("verify-code", input.email)) return { ok: false as const, message: "Too many attempts. Please try again in 15 minutes." };
   const store = await readAuthStore();
   const normalizedEmail = normalizeEmail(input.email);
   const user = store.users.find((entry) => entry.email === normalizedEmail);
@@ -1135,14 +1151,24 @@ export async function resetPasswordWithTemporary(input: {
   user.resetPasswordSentAt = null;
   user.updatedAt = new Date().toISOString();
 
-  await writeAuthStore(store);
+  if (isDatabaseConfigured()) {
+    const consumed = await withDatabase(async (client) => client.query(
+      `UPDATE patentzoom_users SET password_hash = $1, reset_password_hash = NULL,
+       reset_password_expires_at = NULL, reset_password_sent_at = NULL, updated_at = $2
+       WHERE id = $3 AND reset_password_hash = $4 AND reset_password_expires_at > NOW() RETURNING id`,
+      [user.passwordHash, user.updatedAt, user.id, hydratedUser.resetPasswordHash],
+    ));
+    if (!consumed.rowCount) return { ok: false as const, message: "This code was already used or expired. Request a new code." };
+  } else {
+    await writeStoredUser(user);
+  }
 
-  const session = buildSessionUser(hydrateUser(user), null, null, null);
+  const session = buildSessionUser(hydrateUser(user), input.pendingService ?? null, input.pendingPackageKey ?? null, input.pendingPackageLabel ?? null);
   await setSession(session);
 
   return {
     ok: true as const,
-    redirectTo: "/account",
+    redirectTo: getPostAuthHref(session),
   };
 }
 
@@ -1439,9 +1465,17 @@ export async function markStripeCheckoutStatus(input: {
     };
   }
 
+  // Webhooks can arrive late or out of order, including for an older checkout.
+  if (existingPayment.stripeCheckoutStatus === "paid" ||
+      (input.stripeCheckoutSessionId && input.stripeCheckoutSessionId !== existingPayment.stripeCheckoutSessionId) ||
+      (!input.stripeCheckoutSessionId && input.stripePaymentIntentId !== existingPayment.stripePaymentIntentId)) {
+    return { ok: true as const, ignored: true };
+  }
+
   return updateIntakeDraftByUserId({
     userId: input.userId,
     serviceIntent: input.serviceIntent,
+    expectedCheckoutSessionId: existingPayment.stripeCheckoutSessionId,
     currentStep: input.stripeCheckoutStatus === "paid" ? 11 : 10,
     patch: {
       paymentInformation: {

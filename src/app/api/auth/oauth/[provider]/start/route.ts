@@ -33,7 +33,7 @@ export async function GET(
   }
 
   const redirectUri = getOAuthCallbackUrl(provider, request.url);
-  const state = createOAuthState({
+  const state = await createOAuthState({
     provider,
     returnTo,
     serviceIntent: searchParams.get("serviceIntent"),

@@ -40,7 +40,7 @@ export function normalizeServiceIntent(value: FormDataEntryValue | string | null
     return null;
   }
 
-  return value in serviceIntentMap ? (value as ServiceIntent) : null;
+  return Object.hasOwn(serviceIntentMap, value) ? (value as ServiceIntent) : null;
 }
 
 export function getServiceIntentLabel(serviceIntent: ServiceIntent) {

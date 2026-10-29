@@ -568,6 +568,14 @@ export async function saveStepTenAction(
     } satisfies IntakeActionState;
   }
 
+  const draft = context.user.intakeDrafts?.[serviceIntent];
+  if (!context.session.profileComplete || !draft?.engagementAgreement?.accepted || (draft.currentStep ?? 0) < 10) {
+    return { message: "Complete your profile and engagement agreement before payment." };
+  }
+  if (draft.paymentInformation?.stripeCheckoutStatus === "paid") {
+    redirect(`${getIntakeHref(serviceIntent, draft.packageKey)}${draft.packageKey ? "&" : "?"}step=11`);
+  }
+
   const packageKey =
     String(formData.get("packageKey") ?? "").trim() || null;
   const packageLabel =
@@ -636,12 +644,9 @@ export async function saveStepTenAction(
         },
       },
     });
-  } catch (error) {
+  } catch {
     return {
-      message:
-        error instanceof Error
-          ? error.message
-          : "Stripe could not create the checkout session right now.",
+      message: "Checkout is temporarily unavailable. Please try again later or contact support.",
     } satisfies IntakeActionState;
   }
 

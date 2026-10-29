@@ -11,13 +11,13 @@ import {
   resetPasswordWithTemporary,
   updateCurrentUserProfile,
 } from "@/lib/auth";
-import { sendTemporaryPasswordEmail } from "@/lib/mailer";
+import { sendTemporaryPasswordEmail, sendRegistrationVerificationEmail } from "@/lib/mailer";
 import { normalizeServiceIntent } from "@/lib/service-intents";
 
 export type AuthActionState = {
   errors?: Record<string, string[]>;
   message?: string;
-  mode?: "request" | "reset";
+  mode?: "request" | "reset" | "verify";
   email?: string;
   delivery?: "smtp" | "outbox";
 };
@@ -127,7 +127,8 @@ export async function registerStarterAction(
     pendingService: normalizeServiceIntent(formData.get("serviceIntent")),
     pendingPackageKey: String(formData.get("packageKey") ?? "").trim() || null,
     pendingPackageLabel: String(formData.get("packageLabel") ?? "").trim() || null,
-  });
+    sendEmail: sendRegistrationVerificationEmail,
+  }).catch(() => ({ ok: false as const, message: "The verification email could not be sent. Please try again later." }));
 
   if (!result.ok) {
     return {
@@ -135,7 +136,7 @@ export async function registerStarterAction(
     } satisfies AuthActionState;
   }
 
-  redirect(result.redirectTo);
+  return { mode: "verify", email: result.email, delivery: result.delivery };
 }
 
 export async function loginAction(
@@ -250,7 +251,7 @@ export async function requestPasswordResetAction(
   const result = await requestTemporaryPassword({
     email: validated.data.email,
     sendEmail: sendTemporaryPasswordEmail,
-  });
+  }).catch(() => ({ ok: false as const, message: "The recovery email could not be sent. Please try again later." }));
 
   if (!result.ok) {
     return {
@@ -290,6 +291,9 @@ export async function resetPasswordWithTemporaryAction(
     email: validated.data.email,
     temporaryPassword: validated.data.temporaryPassword,
     newPassword: validated.data.newPassword,
+    pendingService: normalizeServiceIntent(formData.get("serviceIntent")),
+    pendingPackageKey: String(formData.get("packageKey") ?? "").trim() || null,
+    pendingPackageLabel: String(formData.get("packageLabel") ?? "").trim() || null,
   });
 
   if (!result.ok) {

@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { updatePendingSelection } from "@/lib/auth";
 import { normalizeServiceIntent } from "@/lib/service-intents";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as {
-    serviceIntent?: string;
-    packageKey?: string;
-    packageLabel?: string;
-  };
+  const parsed = z.object({
+    serviceIntent: z.string(), packageKey: z.string().max(200).optional(), packageLabel: z.string().max(300).optional(),
+  }).safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ message: "Invalid service selection." }, { status: 400 });
+  const body = parsed.data;
 
   const serviceIntent = normalizeServiceIntent(body.serviceIntent);
 

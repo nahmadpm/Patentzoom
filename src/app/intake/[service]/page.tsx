@@ -11,12 +11,11 @@ import { IntakeStepTwoForm } from "@/components/intake-step-two-form";
 import { IntakeStepThreeForm } from "@/components/intake-step-three-form";
 import { IntakeStepSevenForm } from "@/components/intake-step-seven-form";
 import { IntakeStepSixForm } from "@/components/intake-step-six-form";
-import { getEditableServicePage } from "@/lib/admin-content";
+import { getEditableServicePage, getEditablePatentSearchPackages } from "@/lib/admin-content";
 import { getCurrentUserContext, getIntakeDraft } from "@/lib/auth";
 import { buildIntakeOrderSummary } from "@/lib/intake-pricing";
 import {
   contactDetails,
-  patentSearchPackages,
   referenceServicePages,
 } from "@/lib/site-data";
 import {
@@ -145,7 +144,7 @@ export default async function IntakePage({
       : null;
   const packageCards = pageData
     ? pageData.offers.cards.map((card) => ({
-        key: toPackageKey(card.name),
+        key: card.packageKey ?? toPackageKey(card.name),
         name: card.name,
         price: card.price,
         fee: card.fee,
@@ -154,7 +153,7 @@ export default async function IntakePage({
         badge: card.badge,
       }))
     : normalizedService === "patent-search"
-      ? patentSearchPackages.map((card) => ({
+      ? (await getEditablePatentSearchPackages()).map((card) => ({
           key: card.key,
           name: card.name,
           price: card.price,

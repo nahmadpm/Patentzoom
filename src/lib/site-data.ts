@@ -186,6 +186,7 @@ export type ReferenceServicePageData = {
       alt: string;
     }[];
     cards: readonly {
+      packageKey?: string;
       name: string;
       badge?: string;
       imageSrc?: string;

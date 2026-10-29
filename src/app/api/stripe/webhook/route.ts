@@ -33,13 +33,14 @@ export async function POST(request: Request) {
   }
 
   switch (event.type) {
-    case "checkout.session.completed": {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       const serviceIntent = normalizeServiceIntent(session.metadata?.serviceIntent ?? null);
       const userId = session.metadata?.userId ?? null;
 
       if (serviceIntent && userId) {
-        await markStripeCheckoutStatus({
+        const result = await markStripeCheckoutStatus({
           userId,
           serviceIntent,
           stripeCheckoutSessionId: session.id,
@@ -55,10 +56,12 @@ export async function POST(request: Request) {
           stripeAmountTotal: session.amount_total ?? null,
           paidAt: session.payment_status === "paid" ? new Date().toISOString() : null,
         });
+        if (!result.ok) return NextResponse.json({ message: "Payment update is not ready. Retry this event." }, { status: 503 });
       }
       break;
     }
-    case "checkout.session.expired": {
+    case "checkout.session.expired":
+    case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const serviceIntent = normalizeServiceIntent(session.metadata?.serviceIntent ?? null);
       const userId = session.metadata?.userId ?? null;
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
           userId,
           serviceIntent,
           stripeCheckoutSessionId: session.id,
-          stripeCheckoutStatus: "expired",
+          stripeCheckoutStatus: event.type === "checkout.session.expired" ? "expired" : "failed",
           stripePaymentIntentId:
             typeof session.payment_intent === "string"
               ? session.payment_intent
